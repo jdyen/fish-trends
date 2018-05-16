@@ -14,10 +14,10 @@ library(reshape2)
 setwd("~/Dropbox/research/fish-trends/")
 
 # source helper functions
-source("./code/helpers.R")
 source("./code/length_to_mass_calculations.R")
 source("./code/length_to_mass_calculations_sra.R")
 source("./code/makeBUGSfile_hier.R")
+source("./code/helpers.R")
 
 # load data
 source("./code/load-survey-data.R")
@@ -39,10 +39,7 @@ include_covariates <- c(TRUE, FALSE)
 for (resp in resp_all) {
   
   for (covar in include_covariates) {
-    
-    # set file save name
-    save.name <- ifelse(covar, "covar", "trend_only")
-    
+
     # set up outputs
     r2_all <- cov_inc_all <- cov_or_all <- NULL
     

@@ -33,7 +33,7 @@ prepare_bugs_data <- function(spp, resp, covar, nbreak, pc) {
   if (any(y == 0)) {
     dat <- dat[-which(y == 0), ]
     y <- y[-which(y == 0)]
-  } 
+  }  
   
   year <- dat$year
   
@@ -91,16 +91,16 @@ prepare_bugs_data <- function(spp, resp, covar, nbreak, pc) {
     } 
     if (ncol(Xcov) > 1) {
       xdum <- apply(Xcov, 2, create_cov_matrix, nbreak = nbreak)
-    } else {
+    } else { 
       xdum <- create_cov_matrix(Xcov, nbreak = nbreak)
       xdum <- matrix(xdum, ncol = 1)
-    }
+    } 
     Q <- ncol(Xcov)
     Nplot <- 50
     Xplot <- NULL
     for (i in seq_len(Q)) {
       Xplot <- cbind(Xplot, seq(min(Xcov[, i]), max(Xcov[, i]), length = Nplot))
-    }
+    } 
   }
   
   inits <- function(){list(sd.rand = rep(1.0, Nbatch),
@@ -116,20 +116,6 @@ prepare_bugs_data <- function(spp, resp, covar, nbreak, pc) {
               "p.above", "p.ok",
               "mean.trend", 
               "pmt", "ppp")
-  if (covar) {
-    bugsdata <- c(bugsdata,
-                  Q = Q,
-                  Xcov = list(Xcov),
-                  xdum = list(xdum),
-                  nbreak = nbreak,
-                  pc = list(pc),
-                  Nplot = Nplot,
-                  Xplot = list(Xplot))
-    params <- c(params, "effect", "inc.cov", "beta.cov.all", "cov.plot")
-  } 
-  
-  file_tmp <- paste0("trend_model_", spp, ".txt")
-  filename <- paste0(getwd(), "/code/temp_files/", file_tmp)
   bugsdata = list(y = y,
                   yearf = yearf,
                   yearx = yearx,
@@ -146,6 +132,21 @@ prepare_bugs_data <- function(spp, resp, covar, nbreak, pc) {
                   ryind = sysyr.ind,
                   tpr = trend.period,
                   Ntps = Ntps)
+  
+  if (covar) {
+    bugsdata <- c(bugsdata,
+                  Q = Q,
+                  Xcov = list(Xcov),
+                  xdum = list(xdum),
+                  nbreak = nbreak,
+                  pc = list(pc),
+                  Nplot = Nplot,
+                  Xplot = list(Xplot))
+    params <- c(params, "effect", "inc.cov", "beta.cov.all", "cov.plot")
+  }  
+  
+  file_tmp <- paste0("trend_model_", spp, ".txt")
+  filename <- paste0(getwd(), "/code/temp_files/", file_tmp)
   
   out <- list(dat = dat,
               bugsdata = bugsdata,
