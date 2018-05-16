@@ -1,4 +1,4 @@
-coefs_sra <- read.csv("./data/sra-legnth-weight-relation.csv")
+coefs_sra <- read.csv("./data/sra-length-weight-relation.csv")
 
 # load data
 alldat <- read.csv("./data/VEFMAP_FISH_20171024.csv")
