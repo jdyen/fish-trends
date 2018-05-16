@@ -11,18 +11,19 @@ mod_list <- dir("./outputs/fitted/")
 
 for (i in seq_along(mod_list)) {
   
-  mod <- get(load(mod_list[i]))
+  mod <- get(load(paste0("./outputs/fitted/", mod_list[i])))
   # plot fitted trends
-  pdf(paste0("./outputs/plots/", spp, "_", resp, "_", save.name, ".pdf"))
+  pdf(paste0("./outputs/plots/", mod$spp, "_", mod$resp, 
+             ifelse(!is.null(mod$mod_sum$cov_plot_vals), "_covar", ""), ".pdf"))
   plot_fitted(mod$mod_sum,
               mod$bugsdata,
               mod$sp_names,
-              mod$spp, resp)
+              mod$spp, mod$resp)
   dev.off()
   
   # plot covariate associations
   if (!is.null(mod$mod_sum$cov_plot_vals)) {
-    pdf(paste0("./outputs/plots/", spp, "_flow_effects_", resp, ".pdf"))
+    pdf(paste0("./outputs/plots/", mod$spp, "_flow_effects_", mod$resp, ".pdf"))
     plot_covars(mod$mod_sum,
                 mod$bugsdata,
                 resp = mod$resp,
