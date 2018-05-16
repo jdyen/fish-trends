@@ -16,7 +16,6 @@ setwd("~/Dropbox/research/fish-trends/")
 # source helper functions
 source("./code/length_to_mass_calculations.R")
 source("./code/length_to_mass_calculations_sra.R")
-source("./code/makeBUGSfile_hier.R")
 source("./code/helpers.R")
 
 # load data
@@ -60,8 +59,8 @@ for (resp in resp_all) {
       
       make.model.file.hier(bugs_set$filename,
                            covar = covar,
-                           npred = bugsdata$Q,
-                           nbreak = bugsdata$nbreak)  
+                           bugsdata = bugsdata,
+                           cont = 1)  
       
       setwd("./code/temp_files")
       fit <- bugs(data = bugsdata, 
