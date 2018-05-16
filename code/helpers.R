@@ -408,7 +408,7 @@ summarise_fitted <- function(dat, fit, bugsdata) {
   yr.date <- dmy(paste0("01/06/", yr))
   
   real_fitted <- fit$summary[grep("y.sim", rownames(fit$summary)), ]
-  r2_tmp <- cor(real_fitted[, "mean"], y) ** 2
+  r2_tmp <- cor(real_fitted[, "mean"], bugsdata$y) ** 2
    
   fitted <- data.frame(fit$summary[grep("fitted\\[", rownames(fit$summary)), ], yr, yr.date)
   fitted.yr <- data.frame(fit$summary[grep("fitted.yr\\[", rownames(fit$summary)), ], yr, yr.date)
@@ -428,7 +428,7 @@ summarise_fitted <- function(dat, fit, bugsdata) {
   prior.ch <- (bugsdata$kmax * 0.5) / bugsdata$Nyear
   trends$ORs <- trends$p.change * (1 - prior.ch) / ((1 - trends$p.change) * prior.ch)
   
-  sysnames <- c(unique(as.character(dat$system))[order(unique(components[, "system"]))],
+  sysnames <- c(unique(as.character(dat$system))[order(unique(bugsdata$comp[, "system"]))],
                 "All systems")
   
   ppps <- fit$mean$ppp
@@ -436,14 +436,14 @@ summarise_fitted <- function(dat, fit, bugsdata) {
   
   sysnos <- as.numeric(gsub(",.*", "", gsub("mean.trend\\[", "", rownames(mean.trends))))
   yearnos <- as.numeric(gsub("\\]", "", gsub(".*,", "", gsub("mean.trend\\[", "", rownames(mean.trends)))))
-  start.year <- trend.period[yearnos, 1] + max(year) - Nyear
-  end.year <- trend.period[yearnos, 2] + max(year) - Nyear
+  start.year <- bugsdata$tpr[yearnos, 1] + max(dat$year) - bugsdata$Nyear
+  end.year <- bugsdata$tpr[yearnos, 2] + max(dat$year) - bugsdata$Nyear
   mean.trends <- data.frame(sysnames[sysnos], start.year, end.year, mean.trends)
   names(mean.trends)[1] <- c("System")
   
   sysnos <- as.numeric(gsub(",.*", "", gsub("trend\\[", "", rownames(trends))))
   yearnos <- as.numeric(gsub("\\]", "", gsub(".*,", "", gsub("trend\\[", "", rownames(trends)))))
-  yearvalue <- yearnos + max(year) - Nyear
+  yearvalue <- yearnos + max(dat$year) - bugsdata$Nyear
   trends <- data.frame(sysnames[sysnos], yearvalue, trends)
   names(trends)[1:2] <- c("System", "Year")
   
@@ -457,7 +457,9 @@ summarise_fitted <- function(dat, fit, bugsdata) {
     cov_or <- or_cov
     cov_plot_vals <- fit$summary[grep("cov.plot\\[", rownames(fit$summary)), ]
   } else { 
-    cov_res <- rep(NA, 2)
+    cov_inc <- rep(NA, 2)
+    cov_or <- rep(NA, 2)
+    cov_plot_vals <- NULL
   } 
   
   out <- list(r2 = r2_tmp,
@@ -470,25 +472,26 @@ summarise_fitted <- function(dat, fit, bugsdata) {
               date = date,
               yr.date = yr.date,
               sysnames = sysnames,
-              cov_plot_vals = cov_plot_vals)
+              cov_plot_vals = cov_plot_vals,
+              dat = dat)
   
   out
   
 } 
 
 # plot fitted models
-plot_fitted <- function(mod_sum, bugsdata, dat, sp_names, spp, resp) {
+plot_fitted <- function(mod_sum, bugsdata, sp_names, spp, resp) {
   
   for (sysnum in seq_len(bugsdata$Nsystem + 1)) {
     
     fitted.r <- mod_sum$fitted[grep(paste0("\\[", sysnum, ","), rownames(mod_sum$fitted)), ]
     trends.r <- mod_sum$trends[grep(paste0("\\[", sysnum, ","), rownames(mod_sum$trends)), ]
     mean.trends.r <- mod_sum$mean.trends[grep(paste0("\\[", sysnum, ","), rownames(mod_sum$mean.trends)), ]
-    dat.r <- dat[system == sysnum, ]
+    dat.r <- mod_sum$dat[mod_sum$dat$system == sysnum, ]
     if (length(unique(dat.r$system)) > 1)
       stop("check data, >1 system code in subset")
     if(sysnum == (bugsdata$Nsystem + 1))
-      dat.r <- dat
+      dat.r <- mod_sum$dat
     p <- ggplot() + geom_point(data = dat.r, aes(x = date, y = yadj))
     CIs <- ggplot() +
       geom_ribbon(data = fitted.r,
@@ -502,7 +505,7 @@ plot_fitted <- function(mod_sum, bugsdata, dat, sp_names, spp, resp) {
                   color = NA) 
     count.plot <- CIs +
       geom_point(data = dat.r,
-                 aes(x = mod_sum$date, y = yadj),
+                 aes(x = date, y = yadj),
                  color = "grey30") + 
       geom_line(data = fitted.r,
                 aes(x = mod_sum$yr.date, y = mean)) +
@@ -532,18 +535,21 @@ plot_fitted <- function(mod_sum, bugsdata, dat, sp_names, spp, resp) {
 } 
 
 # plot covariate effects
-plot_covars <- function(mod_sum, bugsdata, cov_names) {
+plot_covars <- function(mod_sum, bugsdata, resp, cov_names = NULL) {
   
   cov_mean <- matrix(mod_sum$cov_plot_vals[, "mean"], ncol = bugsdata$Q, byrow = TRUE)
   cov_lower <- matrix(mod_sum$cov_plot_vals[, "2.5%"], ncol = bugsdata$Q, byrow = TRUE)
   cov_upper <- matrix(mod_sum$cov_plot_vals[, "97.5%"], ncol = bugsdata$Q, byrow = TRUE)
+  
+  if (is.null(cov_names))
+    cov_names <- letters[seq_len(bugsdata$Q)]
   
   oldmfrow <- par()$mfrow
   par(mfrow = c(2, 2))
   for (i in seq_len(bugsdata$Q)) {
     plot(cov_mean[, i] ~ bugsdata$Xplot[2:nrow(bugsdata$Xplot), i],
          type = "l", bty = "l", las = 1,
-         xlab = cov_name[i], ylab = paste0("Effect on ", resp),
+         xlab = cov_names[i], ylab = paste0("Effect on ", resp),
          ylim = range(c(cov_mean, cov_lower, cov_upper)))
     polygon(c(bugsdata$Xplot[2:nrow(bugsdata$Xplot), i], bugsdata$Xplot[nrow(bugsdata$Xplot):2, i]),
             c(cov_lower[, i], rev(cov_upper[, i])),

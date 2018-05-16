@@ -3,7 +3,7 @@ setwd("~/Dropbox/research/fish-trends/")
 
 # load packages
 library(ggplot2)
-# library(gridExtra)
+library(gridExtra)
 # library(scales)
 
 # load and plot fitted models
@@ -16,18 +16,20 @@ for (i in seq_along(mod_list)) {
   pdf(paste0("./outputs/plots/", spp, "_", resp, "_", save.name, ".pdf"))
   plot_fitted(mod$mod_sum,
               mod$bugsdata,
-              mod$dat,
               mod$sp_names,
               mod$spp, resp)
   dev.off()
   
   # plot covariate associations
-  pdf(paste0("./outputs/plots/", spp, "_flow_effects_", resp, ".pdf"))
-  plot_covars(mod$mod_sum,
-              mod$bugsdata,
-              cov_name = c("Mean pre-spawning flow",
-                           "CV of annual flow", 
-                           "CV of pre-spawning flow"))
-  dev.off()
+  if (!is.null(mod$mod_sum$cov_plot_vals)) {
+    pdf(paste0("./outputs/plots/", spp, "_flow_effects_", resp, ".pdf"))
+    plot_covars(mod$mod_sum,
+                mod$bugsdata,
+                resp = mod$resp,
+                cov_names = c("Mean pre-spawning flow",
+                              "CV of annual flow", 
+                              "CV of pre-spawning flow"))
+    dev.off()
+  }
   
 }

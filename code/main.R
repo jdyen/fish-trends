@@ -30,7 +30,7 @@ WINEPATH <- "/Applications/Wine.app/Contents/Resources/bin/winepath"
 
 # model settings
 resp_all <- c("abundance", "biomass")
-nits <- 100
+nits <- 5000
 nchain <- 3
 debug <- FALSE
 include_covariates <- c(TRUE, FALSE)
@@ -80,7 +80,7 @@ for (resp in resp_all) {
       
       mod_all <- list(mod_sum = mod_summary,
                       bugsdata = bugsdata,
-                      dat = dat,
+                      dat = mod_summary$dat,
                       sp_names = sp_names,
                       spp = spp,
                       resp = resp)
