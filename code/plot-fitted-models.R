@@ -4,7 +4,6 @@ setwd("~/Dropbox/research/fish-trends/")
 # load packages
 library(ggplot2)
 library(gridExtra)
-# library(scales)
 
 # load and plot fitted models
 mod_list <- dir("./outputs/fitted/")

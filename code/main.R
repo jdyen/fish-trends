@@ -30,7 +30,7 @@ WINEPATH <- "/Applications/Wine.app/Contents/Resources/bin/winepath"
 
 # model settings
 resp_all <- c("abundance", "biomass")
-nits <- 5000
+nits <- 2000
 nchain <- 3
 debug <- FALSE
 include_covariates <- c(TRUE, FALSE)
