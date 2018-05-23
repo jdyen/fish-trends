@@ -280,13 +280,19 @@ prepare_bugs_data <- function(spp, resp, covar, nbreak, pc) {
   yearf <- as.numeric(as.factor(year))
   site <- as.numeric(as.factor(as.integer(dat$site)))
   system <- as.numeric(as.factor(as.integer(dat$system)))
+  site <- as.numeric(ordered(as.factor(system):as.factor(site)))
   sysyear <- as.numeric(ordered(as.factor(system):as.factor(yearf)))
   reach <- as.numeric(as.factor(dat$reach))
+  reach <- as.numeric(ordered(as.factor(system):as.factor(reach)))
   Nsystem <- max(system)
   components <- cbind(system, site, yearf, reach)
   
   components <- cbind(components, sysyear)
   Nlevels <- apply(components, 2, max)
+  
+  print(head(components))
+  print(apply(components, 2, range))
+  print(apply(components, 2, function(x) length(unique(x))))
   
   Nbatch <- length(Nlevels)
   N <- length(y)
@@ -318,12 +324,14 @@ prepare_bugs_data <- function(spp, resp, covar, nbreak, pc) {
   if (covar) {
     
     # extract plot variable from predictors
-    Xcov <- cbind(dat$mspwn, dat$covaf, dat$cspwn)
+    Xcov <- cbind(dat$mannf, dat$covaf, dat$cspwn)
     
     # interpolate NAs in covariate data
     Xcov <- apply(Xcov, 2, na_rm_fun)
-    Xcov <- sweep(Xcov, 2, apply(Xcov, 2, mean), "-")
-    Xcov <- sweep(Xcov, 2, apply(Xcov, 2, sd), "/")
+    x_means <- apply(Xcov, 2, mean)
+    x_sds <- apply(Xcov, 2, sd)
+    Xcov <- sweep(Xcov, 2, x_means, "-")
+    Xcov <- sweep(Xcov, 2, x_sds, "/")
     
     # create dummy matrix to give nonlinear effects
     if (!is.matrix(Xcov)) {
@@ -392,6 +400,8 @@ prepare_bugs_data <- function(spp, resp, covar, nbreak, pc) {
               bugsdata = bugsdata,
               inits = inits,
               params = params,
+              covar_std = list(mean = x_means,
+                               sd = x_sds),
               filename = filename,
               file_tmp = file_tmp)
   
@@ -467,6 +477,7 @@ summarise_fitted <- function(dat, fit, bugsdata) {
               cov_inc = cov_inc,
               cov_or = cov_or,
               fitted = fitted,
+              fitted.yr = fitted.yr,
               trends = trends,
               mean.trends = mean.trends,
               date = date,
@@ -482,60 +493,73 @@ summarise_fitted <- function(dat, fit, bugsdata) {
 # plot fitted models
 plot_fitted <- function(mod_sum, bugsdata, sp_names, spp, resp) {
   
-  for (sysnum in seq_len(bugsdata$Nsystem + 1)) {
-    
-    fitted.r <- mod_sum$fitted[grep(paste0("\\[", sysnum, ","), rownames(mod_sum$fitted)), ]
-    trends.r <- mod_sum$trends[grep(paste0("\\[", sysnum, ","), rownames(mod_sum$trends)), ]
-    mean.trends.r <- mod_sum$mean.trends[grep(paste0("\\[", sysnum, ","), rownames(mod_sum$mean.trends)), ]
-    dat.r <- mod_sum$dat[mod_sum$dat$system == sysnum, ]
-    if (length(unique(dat.r$system)) > 1)
-      stop("check data, >1 system code in subset")
-    if(sysnum == (bugsdata$Nsystem + 1))
-      dat.r <- mod_sum$dat
-    p <- ggplot() + geom_point(data = dat.r, aes(x = date, y = yadj))
-    CIs <- ggplot() +
-      geom_ribbon(data = fitted.r,
-                  aes(x = mod_sum$yr.date, ymin = pc2.5, ymax = pc97.5),
-                  alpha = 0.5,
-                  fill = "grey80",
-                  color = NA) + 
-      geom_ribbon(data = fitted.r,
-                  aes(x = mod_sum$yr.date, ymin = pc25, ymax = pc75),
-                  fill = "grey",
-                  color = NA) 
-    count.plot <- CIs +
-      geom_point(data = dat.r,
-                 aes(x = date, y = yadj),
-                 color = "grey30") + 
-      geom_line(data = fitted.r,
-                aes(x = mod_sum$yr.date, y = mean)) +
-      ylab(paste0(sp_names$full[match(spp, sp_names$code)], " ", resp)) +
-      xlab("Year") +
-      ggtitle(paste0(mod_sum$sysnames[sysnum])) +
-      theme_bw()
-    p2 <- ggplot(data = trends.r) +
-      geom_ribbon(aes(x = mod_sum$yr.date, ymin = pc2.5, ymax = pc97.5),
-                  alpha = 0.5,
-                  fill = "grey80",
-                  color = NA) +
-      geom_ribbon(aes(x = mod_sum$yr.date, ymin = pc25, ymax = pc75),
-                  fill = "grey",
-                  color = NA) +
-      geom_line(aes(x = mod_sum$yr.date, y = mean), lwd = 2) 
-    trend.plot <- p2 +
-      xlab("Year") +
-      ylab("Trend (proportional change per year)") +
-      geom_abline(intercept = 0, slope = 0) +
-      theme_bw()
-    
-    grid.arrange(count.plot, trend.plot, heights = c(1.5, 1))
-    
-  }
+  sysnum <- bugsdata$Nsystem + 1
+  fitted.r <- mod_sum$fitted[grep(paste0("\\[", sysnum, ","), rownames(mod_sum$fitted)), ]
+  
+  xvals <- fitted.r$yr
+  upper95 <- fitted.r$pc97.5
+  lower95 <- fitted.r$pc2.5
+  upper50 <- fitted.r$pc75
+  lower50 <- fitted.r$pc25
+  plot(mod_sum$dat$yadj ~ mod_sum$dat$year,
+       ylim = range(c(mod_sum$dat$yadj, upper95, lower95, upper50, lower50)),
+       type = "n",
+       las = 1, bty = "l",
+       xlab = "", ylab = "")
+  polygon(c(xvals, rev(xvals)),
+          c(upper95, rev(lower95)),
+          col = ggplot2::alpha("grey75", 0.5),
+          border = NA)
+  polygon(c(xvals, rev(xvals)),
+          c(upper50, rev(lower50)),
+          col = ggplot2::alpha("grey50", 0.5),
+          border = NA)
+  lines(fitted.r$pc50 ~ xvals, lwd = 2,
+        col = ggplot2::alpha("grey30", 0.5))
+  points(mod_sum$dat$yadj ~ mod_sum$dat$year,
+         pch = 16,
+         col = ggplot2::alpha("grey30", 0.5))
+  mtext("Year", side = 1, adj = 0.5, line = 2.5)
+  mtext(paste0(sp_names$full[match(spp, sp_names$code)], " ", resp, " CPUE"), side = 2, adj = 0.5, line = 3.0)
   
 } 
 
+plot_trend <- function(mod_sum, bugsdata, sp_names, spp, resp) {
+  
+  sysnum <- bugsdata$Nsystem + 1
+  trends.r <- mod_sum$trends[grep(paste0("\\[", sysnum, ","), rownames(mod_sum$trends)), ]
+
+  trend_upper95 <- trends.r$pc97.5
+  trend_lower95 <- trends.r$pc2.5
+  trend_upper50 <- trends.r$pc75
+  trend_lower50 <- trends.r$pc25
+  x_trend <- trends.r$yr
+  plot(trend_upper50 ~ x_trend,
+       type = "n",
+       ylim = range(c(trend_lower95, trend_lower50, trend_upper50, trend_upper95)),
+       bty = "l", las = 1,
+       xlab = "", ylab = "")
+  polygon(c(x_trend, rev(x_trend)),
+          c(trend_upper95, rev(trend_lower95)),
+          col = ggplot2::alpha("grey80", 0.5),
+          border = NA)
+  polygon(c(x_trend, rev(x_trend)),
+          c(trend_upper50, rev(trend_lower50)),
+          col = ggplot2::alpha("grey60", 0.5),
+          border = NA)
+  lines(trends.r$mean ~ x_trend,
+        lwd = 2)
+  lines(c(min(x_trend) - 1, max(x_trend) + 1), c(0, 0), lty = 2)
+  mtext("Year", side = 1, adj = 0.5, line = 2.5)
+  mtext("Trend (proportional change per year)", side = 2, adj = 0.5, line = 3.0)
+  
+}
+
 # plot covariate effects
-plot_covars <- function(mod_sum, bugsdata, resp, cov_names = NULL) {
+plot_covars <- function(mod_sum, bugsdata, resp, cov_names = NULL, covar_std) {
+  
+  if (is.null(cov_names))
+    cov_names <- letters()
   
   cov_mean <- matrix(mod_sum$cov_plot_vals[, "mean"], ncol = bugsdata$Q, byrow = TRUE)
   cov_lower <- matrix(mod_sum$cov_plot_vals[, "2.5%"], ncol = bugsdata$Q, byrow = TRUE)
@@ -547,18 +571,21 @@ plot_covars <- function(mod_sum, bugsdata, resp, cov_names = NULL) {
   oldmfrow <- par()$mfrow
   par(mfrow = c(2, 2))
   for (i in seq_len(bugsdata$Q)) {
-    plot(cov_mean[, i] ~ bugsdata$Xplot[2:nrow(bugsdata$Xplot), i],
+    x_set <- bugsdata$Xplot[2:nrow(bugsdata$Xplot), i]
+    x_adj <- covar_std$mean[i] + (x_set * covar_std$sd[i])
+    plot(cov_mean[, i] ~ x_set,
          type = "l", bty = "l", las = 1,
+         xaxt = "n",
          xlab = cov_names[i], ylab = paste0("Effect on ", resp),
          ylim = range(c(cov_mean, cov_lower, cov_upper)))
+    axis(1, at = seq(min(x_set), max(x_set), length = 5),
+         labels = seq(min(x_adj), max(x_adj), length = 5))
     polygon(c(bugsdata$Xplot[2:nrow(bugsdata$Xplot), i], bugsdata$Xplot[nrow(bugsdata$Xplot):2, i]),
             c(cov_lower[, i], rev(cov_upper[, i])),
             border = NA,
-            col = "gray50")
+            col = ggplot2::alpha("gray50", 0.5))
     lines(cov_mean[, i] ~ bugsdata$Xplot[2:nrow(bugsdata$Xplot), i])
     lines(range(bugsdata$Xplot[2:nrow(bugsdata$Xplot), i]), c(0, 0), lty = 2)
   } 
-  
-  par(mfrow = oldmfrow)
   
 }

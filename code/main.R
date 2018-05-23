@@ -30,8 +30,9 @@ WINEPATH <- "/Applications/Wine.app/Contents/Resources/bin/winepath"
 
 # model settings
 resp_all <- c("abundance", "biomass")
-nits <- 2000
-nchain <- 3
+nits <- 10000
+nburn <- 5000
+nchain <- 4
 debug <- FALSE
 include_covariates <- c(TRUE, FALSE)
 
@@ -45,7 +46,7 @@ for (resp in resp_all) {
     # set species subset
     species_sub <- c("goldenperch", "murraycod", "murrayriverrainbowfish",
                      "silverperch", "troutcod")
-    
+
     # loop through spatial management units
     for (spp in levels(alldat$species)[match(species_sub, levels(alldat$species))]) {
       
@@ -69,6 +70,7 @@ for (resp in resp_all) {
                   model.file = bugs_set$file_tmp,
                   n.chains = nchain,
                   n.iter = nits,
+                  n.burnin = nburn,
                   debug = debug,
                   bugs.directory = bugs_dir,
                   useWINE = TRUE,
@@ -83,7 +85,8 @@ for (resp in resp_all) {
                       dat = mod_summary$dat,
                       sp_names = sp_names,
                       spp = spp,
-                      resp = resp)
+                      resp = resp,
+                      covar_std = bugs_set$covar_std)
       save_name <- paste0("./outputs/fitted/", spp, "_", resp)
       if (covar)
         save_name <- paste0(save_name, "_covar")
