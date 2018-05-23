@@ -290,10 +290,6 @@ prepare_bugs_data <- function(spp, resp, covar, nbreak, pc) {
   components <- cbind(components, sysyear)
   Nlevels <- apply(components, 2, max)
   
-  print(head(components))
-  print(apply(components, 2, range))
-  print(apply(components, 2, function(x) length(unique(x))))
-  
   Nbatch <- length(Nlevels)
   N <- length(y)
   Nyear <- max(yearf)
@@ -380,6 +376,7 @@ prepare_bugs_data <- function(spp, resp, covar, nbreak, pc) {
                   ryind = sysyr.ind,
                   tpr = trend.period,
                   Ntps = Ntps)
+  covar_std <- NULL
   
   if (covar) {
     bugsdata <- c(bugsdata,
@@ -391,6 +388,8 @@ prepare_bugs_data <- function(spp, resp, covar, nbreak, pc) {
                   Nplot = Nplot,
                   Xplot = list(Xplot))
     params <- c(params, "effect", "inc.cov", "beta.cov.all", "cov.plot")
+    covar_std <- list(mean = x_means,
+                      x = x_sds)
   }  
   
   file_tmp <- paste0("trend_model_", spp, ".txt")
@@ -400,8 +399,7 @@ prepare_bugs_data <- function(spp, resp, covar, nbreak, pc) {
               bugsdata = bugsdata,
               inits = inits,
               params = params,
-              covar_std = list(mean = x_means,
-                               sd = x_sds),
+              covar_std = covar_std,
               filename = filename,
               file_tmp = file_tmp)
   
