@@ -30,15 +30,15 @@ WINEPATH <- "/Applications/Wine.app/Contents/Resources/bin/winepath"
 
 # model settings
 resp_all <- c("abundance", "biomass")
-nits <- 10000
-nburn <- 5000
-nchain <- 4
+nits <- 500
+nburn <- 200
+nchain <- 1
 debug <- FALSE
-include_covariates <- c(TRUE, FALSE)
+mod_type <- c("int_re", "trend", "covar", "covar_trend")
 
 for (resp in resp_all) {
   
-  for (covar in include_covariates) {
+  for (mod_set in mod_type) {
 
     # set up outputs
     r2_all <- cov_inc_all <- cov_or_all <- NULL
@@ -52,14 +52,14 @@ for (resp in resp_all) {
       
       bugs_set <- prepare_bugs_data(spp,
                                     resp,
-                                    covar,
+                                    mod_type = mod_set,
                                     nbreak = 10,
                                     pc = c(0.5, 0.3, 0.1, 0.1))
       dat <- bugs_set$dat
       bugsdata <- bugs_set$bugsdata
       
       make.model.file.hier(bugs_set$filename,
-                           covar = covar,
+                           mod_type = mod_set,
                            bugsdata = bugsdata,
                            cont = 1)  
       
@@ -78,7 +78,9 @@ for (resp in resp_all) {
                   WINEPATH = WINEPATH)
       setwd("../..")
       
-      mod_summary <- summarise_fitted(dat = dat, fit = fit, bugsdata = bugsdata)
+      mod_summary <- summarise_fitted(dat = dat, fit = fit,
+                                      bugsdata = bugsdata,
+                                      mod_type = mod_set)
       
       mod_all <- list(mod_sum = mod_summary,
                       bugsdata = bugsdata,
@@ -86,10 +88,17 @@ for (resp in resp_all) {
                       sp_names = sp_names,
                       spp = spp,
                       resp = resp,
-                      covar_std = bugs_set$covar_std)
+                      covar_std = bugs_set$covar_std,
+                      mod_type = mod_set)
       save_name <- paste0("./outputs/fitted/", spp, "_", resp)
-      if (covar)
+      if (mod_set == "int")
+        save_name <- paste0(save_name, "_int")
+      if (mod_set == "int_re")
+        save_name <- paste0(save_name, "_int_re")
+      if (mod_set == "covar")
         save_name <- paste0(save_name, "_covar")
+      if (mod_set == "covar_trend")
+        save_name <- paste0(save_name, "_covar_trend")
       save_name <- paste0(save_name, ".RData")
       save(mod_all, file = save_name)
       
