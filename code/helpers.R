@@ -15,7 +15,7 @@ make.model.file.hier <- function(filename,
       for (i in 1:N) {
       
       y[i] ~ dlnorm(mu[i], tau_main)
-      res[i] <- y[i] - mu[i]
+      res[i] <- log(y[i]) - mu[i]
       ",
       fill = TRUE)
   
@@ -45,7 +45,7 @@ make.model.file.hier <- function(filename,
   } else {
     cat("
       for (b in 2:Nbatch) {
-      beta.comp[i,b] <- beta[comp[i, b], b]
+      beta.comp[i, b] <- beta[comp[i, b], b]
       }
       }
       
@@ -59,7 +59,7 @@ make.model.file.hier <- function(filename,
       cat("  logmean[Nsystem + 1, j] <- jump.mean[j] - jump.mean[1] + jump.mean.step[j] - jump.mean.step[1]", "\n")
     
     
-    for (r in 1:bugsdata$Nsystem) {
+    for (r in seq_len(bugsdata$Nsystem)) {
       cat(paste0("    logmean[", r, ", j] <- beta[", r, ", 1] + logmean[Nsystem + 1, j] + systrend[", r, ", j] - mean(systrend[1:Nsystem, j]) - mean(beta[1:Nsystem, 1])"), "\n")
       if (cont)
         cat(paste0("    systrend[", r, ", j] <- jump.sys", r, "[j] - jump.sys", r, "[1]"), "\n")
@@ -77,7 +77,7 @@ make.model.file.hier <- function(filename,
     if (!cont)
       cat("  jump.mean.step[1:Nyear] <- jump.pw.poly.df.gen(yearx[1:Nyear], k.step[1], tau.step[2], 0, 0)", "\n", "\n")
     
-    for (r in 1:bugsdata$Nsystem) {
+    for (r in seq_len(bugsdata$Nsystem)) {
       cat(paste0("  jump.sys", r, "[1:Nyear] <- jump.pw.poly.df.lin(yearx[1:Nyear], kmean[", r + 1, "], tau[3])"), "\n")
       if (!cont)
         cat(paste0("  jump.sys.step", r, "[1:Nyear] <- jump.pw.poly.df.gen(yearx[1:Nyear], k.step[", r+1, "], tau.step[3], 0, 0)"), "\n")
@@ -91,11 +91,11 @@ make.model.file.hier <- function(filename,
       sd_main ~ dunif(0, 10)
       
       for (b in 1:Nbatch) {
-      for (l in 1:(Nlevels[b])) {
-      beta[l, b] ~ dnorm(0, tau.rand[b])
-      }
-      tau.rand[b] <- 1 / pow(sd.rand[b], 2)
-      sd.rand[b] ~ dunif(0, 5)
+        for (l in 1:(Nlevels[b])) {
+          beta[l, b] ~ dnorm(0, tau.rand[b])
+        }
+        tau.rand[b] <- 1 / pow(sd.rand[b], 2)
+        sd.rand[b] ~ dunif(0, 5)
       }
       
       for (t in 1:3) {
@@ -104,15 +104,15 @@ make.model.file.hier <- function(filename,
       }
       for (i in 1:(Nsystem + 1)) {
       kmean[i] ~ dbin(0.5, kmax)
-      k.step[i] ~ dbin(0.5, kmax) \n",
+      k.step[i] ~ dbin(0.5, kmax)\n",
       fill = TRUE)
   if (mod_type == "covar_trend")
-    cat("for (j in 1:Nyear) {\n  fitted[i, j] <- exp(alpha + logmean[i, j] + mu.cov[i])\n}\n")
+    cat("for (j in 1:Nyear) {\n  fitted[i, j] <- exp(alpha + logmean[i, j] + mu.cov.mean[i, j])\n")
   if (mod_type == "trend")
-    cat("for (j in 1:Nyear) {\n  fitted[i, j] <- exp(alpha + logmean[i, j])\n}\n")
+    cat("for (j in 1:Nyear) {\n  fitted[i, j] <- exp(alpha + logmean[i, j])\n")
   if (mod_type %in% c("int", "int_re", "covar")) {
     if (mod_type == "covar") {
-      cat("      fitted[i] <- exp(alpha + mu.cov[i])
+      cat("      fitted[i] <- exp(alpha + mu.cov.mean[i, j])
         }",
           fill = TRUE)
     } else {
@@ -121,25 +121,32 @@ make.model.file.hier <- function(filename,
           fill = TRUE)
     }
   } else {
-  cat("      pinc[i, j] <- step(trend[i, j] -  1)
-      fitted.yr[i, j] <- exp(fitted.yr.log[i, j])
-      fitted.yr.log[i, j] <- alpha + logmean[i, j] + beta[j, 3] + beta[ryind[i, j], Nbatch]
-      p.above[i, j] <- step(fitted.yr.log[i, j] - mean(fitted.yr.log[i, b.st:b.end]))
-      p.ok[i, j] <- pinc[i,j] * p.above[i,j]
-      }
-      for (j in 2:Nyear) {
-      log(trend[i, j]) <- logmean[i, j] - logmean[i, j - 1]
-      }
-      for (j in 2:Nyear) {
-      pch[i, j] <- 1 - equals(trend[i, j], trend[i, j - 1])
-      }
-      trend[i, 1] <- trend[i, 2]
-      pch[i, 1] ~ dnorm(0, 10000)
+  cat("   pinc[i, j] <- step(trend[i, j] -  1)
+          fitted.yr[i, j] <- exp(fitted.yr.log[i, j])\n",
+      fill = TRUE)
+    if (mod_type == "trend") {
+    cat("     fitted.yr.log[i, j] <- alpha + logmean[i, j] + beta[j, 4]\n",
+        fill = TRUE)
+    } else {
+      cat("     fitted.yr.log[i, j] <- alpha + logmean[i, j] + beta[j, 4] + mu.cov.mean[i, j]\n",
+          fill = TRUE)
+    }
+    cat("      p.above[i, j] <- step(fitted.yr.log[i, j] - mean(fitted.yr.log[i, b.st:b.end]))
+          p.ok[i, j] <- pinc[i,j] * p.above[i,j]
+        }
+        for (j in 2:Nyear) {
+          log(trend[i, j]) <- logmean[i, j] - logmean[i, j - 1]
+        }
+        for (j in 2:Nyear) {
+          pch[i, j] <- 1 - equals(trend[i, j], trend[i, j - 1])
+        }
+        trend[i, 1] <- trend[i, 2]
+        pch[i, 1] ~ dnorm(0, 10000)
       
-      for (tp in 1:Ntps) {
-      mean.trend[i, tp] <- mean(trend[i, tpr[tp, 1]:tpr[tp, 2]])
-      pmt[i, tp] <- step(mean.trend[i, tp] - 1)
-      }
+        for (tp in 1:Ntps) {
+          mean.trend[i, tp] <- mean(trend[i, tpr[tp, 1]:tpr[tp, 2]])
+          pmt[i, tp] <- step(mean.trend[i, tp] - 1)
+        }
       
       }
       
@@ -170,6 +177,18 @@ make.model.file.hier <- function(filename,
           Xcov.res[i, j] <- Xcov[i, j] - mean(Xcov[, j])
           Xcov.res.sq[i, j] <- pow(Xcov.res[i, j], 2)
           slope.num[i, j] <- (cov.in[i, j] - mean(cov.in[, j])) * Xcov.res[i, j]
+        }
+      }
+      for (i in 1:(Nsystem + 1)) {
+        for (j in 1:Nyear) {
+          mu.cov.mean[i, j] <- sum(cov.mean[i, j, ])
+          for (q in 1:Q) {
+            cov.mean[i, j, q] <- sum(cov.mean.seg[, i, j, q])
+            for (k in 1:nbreak) {
+              cov.mean.seg[k, i, j, q] <- step(flow.mean[i, j, q] - xdum[(k + 1), q]) *
+                beta.cov.all[k, q] * (flow.mean[i, j, q] - xdum[(k + 1), q])
+            }
+          }
         }
       }
         
@@ -358,6 +377,15 @@ prepare_bugs_data <- function(spp, resp, mod_type, nbreak, pc) {
     Xcov <- sweep(Xcov, 2, x_means, "-")
     Xcov <- sweep(Xcov, 2, x_sds, "/")
     
+    # calculate annual, system-specific mean values on standardized scale
+    flow.mean <- array(NA, dim = c(Nsystem + 1, Nyear, ncol(Xcov)))
+    for (q in seq_len(ncol(Xcov))) {
+      flow.mean[seq_len(Nsystem), , q] <- tapply(Xcov[, q], list(system, yearf), mean)
+      flow.mean[(Nsystem + 1), , q] <- tapply(Xcov[, q], list(yearf), mean)
+      flow.mean[, , q] <- sweep(flow.mean[, , q], 1, apply(flow.mean[, , q], 1, mean, na.rm = TRUE),
+                                function(x, y) ifelse(is.na(x), y, x))
+    }
+
     # create dummy matrix to give nonlinear effects
     if (!is.matrix(Xcov)) {
       Xcov <- matrix(Xcov, ncol = 1)
@@ -386,28 +414,37 @@ prepare_bugs_data <- function(spp, resp, mod_type, nbreak, pc) {
               "y.sim",
               "fitted",
               "ppp")
-  bugsdata <- list(y = y,
-                   N = N,
-                   Nsystem = Nsystem,
-                   system = system,
-                   comp = components,
-                   Nlevels = Nlevels, 
-                   Nbatch = Nbatch,
-                   kmax = kmax)
-  
+  if (mod_type %in% c("int", "int_re", "covar")) {
+    bugsdata <- list(y = y,
+                     N = N,
+                     Nsystem = Nsystem,
+                     system = system,
+                     comp = components,
+                     Nlevels = Nlevels, 
+                     Nbatch = Nbatch,
+                     kmax = kmax)
+  } else {
+    bugsdata <- list(y = y,
+                     N = N,
+                     Nsystem = Nsystem,
+                     system = system,
+                     comp = components,
+                     Nlevels = Nlevels, 
+                     Nbatch = Nbatch,
+                     kmax = kmax,
+                     yearf = yearf,
+                     yearx = yearx,
+                     Nyear = Nyear,
+                     b.st = 1,
+                     b.end = 3,
+#                     ryind = sysyr.ind,
+                     tpr = trend.period,
+                     Ntps = Ntps)
+  } 
   if (mod_type %in% c("trend", "covar_trend")) {
     params <- c(params, "logmean", "trend", "pch", "pinc",
                 "fitted.yr", "p.above", "p.ok", "mean.trend",
                 "pmt")
-    bugsdata <- c(bugsdata,
-                  yearf = yearf,
-                  yearx = yearx,
-                  Nyear = Nyear,
-                  b.st = 1,
-                  b.end = 3,
-                  ryind = sysyr.ind,
-                  tpr = trend.period,
-                  Ntps = Ntps)
   }
   covar_std <- NULL
   
@@ -419,7 +456,8 @@ prepare_bugs_data <- function(spp, resp, mod_type, nbreak, pc) {
                   nbreak = nbreak,
                   pc = list(pc),
                   Nplot = Nplot,
-                  Xplot = list(Xplot))
+                  Xplot = list(Xplot),
+                  flow.mean = list(flow.mean))
     params <- c(params, "effect", "inc.cov", "beta.cov.all", "cov.plot")
     covar_std <- list(mean = x_means,
                       x = x_sds)
@@ -451,7 +489,7 @@ summarise_fitted <- function(dat, fit, bugsdata, mod_type) {
   real_fitted <- (fit$summary[grep("mu", rownames(fit$summary)), ])
   r2_tmp <- cor(real_fitted[, "mean"], log(bugsdata$y)) ** 2
    
-  if (mod_type %in% c("int", "int_re"))
+  if (mod_type %in% c("int", "int_re", "covar"))
     fitted <- data.frame(fit$summary[grep("fitted\\[", rownames(fit$summary)), ])
   else
     fitted <- data.frame(fit$summary[grep("fitted\\[", rownames(fit$summary)), ], yr, yr.date)
@@ -576,7 +614,7 @@ plot_trend <- function(mod_sum, bugsdata, sp_names, spp, resp) {
   trend_lower95 <- trends.r$pc2.5
   trend_upper50 <- trends.r$pc75
   trend_lower50 <- trends.r$pc25
-  x_trend <- trends.r$yr
+  x_trend <- trends.r$Year
   plot(trend_upper50 ~ x_trend,
        type = "n",
        ylim = range(c(trend_lower95, trend_lower50, trend_upper50, trend_upper95)),
@@ -602,7 +640,7 @@ plot_trend <- function(mod_sum, bugsdata, sp_names, spp, resp) {
 plot_covars <- function(mod_sum, bugsdata, resp, cov_names = NULL, covar_std) {
   
   if (is.null(cov_names))
-    cov_names <- letters()
+    cov_names <- letters
   
   cov_mean <- matrix(mod_sum$cov_plot_vals[, "mean"], ncol = bugsdata$Q, byrow = TRUE)
   cov_lower <- matrix(mod_sum$cov_plot_vals[, "2.5%"], ncol = bugsdata$Q, byrow = TRUE)
@@ -615,7 +653,7 @@ plot_covars <- function(mod_sum, bugsdata, resp, cov_names = NULL, covar_std) {
   par(mfrow = c(2, 2))
   for (i in seq_len(bugsdata$Q)) {
     x_set <- bugsdata$Xplot[2:nrow(bugsdata$Xplot), i]
-    x_adj <- covar_std$mean[i] + (x_set * covar_std$sd[i])
+    x_adj <- covar_std$mean[i] + (x_set * covar_std$x[i])
     plot(cov_mean[, i] ~ x_set,
          type = "l", bty = "l", las = 1,
          xaxt = "n",
@@ -629,6 +667,8 @@ plot_covars <- function(mod_sum, bugsdata, resp, cov_names = NULL, covar_std) {
             col = ggplot2::alpha("gray50", 0.5))
     lines(cov_mean[, i] ~ bugsdata$Xplot[2:nrow(bugsdata$Xplot), i])
     lines(range(bugsdata$Xplot[2:nrow(bugsdata$Xplot), i]), c(0, 0), lty = 2)
+    points(bugsdata$y ~ bugsdata$Xcov[, i],
+           pch = 16, col = ggplot2::alpha("gray25", 0.5))
   }  
   
 }

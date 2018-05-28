@@ -5,7 +5,11 @@ setwd("~/Dropbox/research/fish-trends/")
 source("./code/helpers.R")
 
 # load and plot fitted models
-mod_list <- dir("./outputs/fitted/")
+mod_list_all <- dir("./outputs/fitted/")
+
+# subset to the trend and covar_trend models for plotting
+mod_list <- mod_list_all[-grep("covar.RData", mod_list_all)]
+mod_list <- mod_list[-grep("int_re.RData", mod_list)]
 
 # set up a summary output table and predictor names for labels
 cov_names <- c("Mean annual flow",
@@ -17,8 +21,9 @@ for (i in seq_along(mod_list)) {
   
   mod <- get(load(paste0("./outputs/fitted/", mod_list[i])))
   # plot fitted trends
-  pdf(paste0("./outputs/plots/fitted_", mod$spp, "_", mod$resp, 
-             ifelse(!is.null(mod$mod_sum$cov_plot_vals), "_covar", ""), ".pdf"))
+  pdf(paste0("./outputs/plots/fitted_",
+             sapply(strsplit(mod_list, "\\."), function(x) x[1])[i],
+             ".pdf"))
   plot_fitted(mod$mod_sum,
               mod$bugsdata,
               mod$sp_names,
@@ -54,3 +59,38 @@ for (i in seq_along(mod_list)) {
   
 }
 colnames(summary_table) <- c("r2", "PPP", rep(cov_names, 2))
+
+sp_list <- unique(sapply(strsplit(mod_list_all, "_"), function(x) x[1]))
+hp_out <- vector("list", length = length(sp_list))
+r2_out <- vector("list", length = length(sp_list))
+for (i in seq_along(sp_list)) {
+  
+  mod_sub <- mod_list_all[grep(sp_list[i], mod_list_all)]
+  mod_load <- vector("list", length = length(mod_sub))
+  for (j in seq_along(mod_sub))
+    mod_load[[j]] <- get(load(paste0("./outputs/fitted/", mod_sub[j])))
+  
+  r2_sub <- sapply(mod_load, function(x) x$mod_sum$r2)
+  names(r2_sub) <- paste(sapply(mod_load, function(x) x$resp),
+                         sapply(mod_load, function(x) x$mod_type),
+                         sep = "_")
+  
+  hp.abund <- hier.part::partition(r2_sub[c("abundance_int_re",
+                                            "abundance_trend",
+                                            "abundance_covar",
+                                            "abundance_covar_trend")],
+                                   pcan = 2,
+                                   var.names = c("trend", "flow"))
+  hp.bioms <- hier.part::partition(r2_sub[c("biomass_int_re",
+                                            "biomass_trend",
+                                            "biomass_covar",
+                                            "biomass_covar_trend")],
+                                   pcan = 2,
+                                   var.names = c("trend", "flow"))
+  
+  r2_out[[i]] <- r2_sub
+  hp_out[[i]] <- list(abundance = hp.abund,
+                      biomass = hp.bioms)
+  
+}
+names(hp_out) <- names(r2_out) <- sp_list
