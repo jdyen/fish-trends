@@ -16,23 +16,24 @@ make.model.file.hier <- function(filename,
       
       y[i] ~ dlnorm(mu[i], tau_main)
       res[i] <- log(y[i]) - mu[i]
+      mu[i] ~ dnorm(mu0[i], tau[1])
       ",
       fill = TRUE)
   
   if(mod_type == "int")
-    cat("    mu[i] <- alpha","\n")
+    cat("    mu0[i] <- alpha","\n")
   
   if(mod_type == "int_re")
-    cat("    mu[i] <- alpha + sum(beta.comp[i, 1:Nbatch])","\n")
+    cat("    mu0[i] <- alpha + sum(beta.comp[i, 1:Nbatch])","\n")
   
   if (mod_type == "trend")
-    cat("    mu[i] <- alpha + logmean[system[i], yearf[i]] + sum(beta.comp[i, 2:Nbatch])","\n")
+    cat("    mu0[i] <- alpha + logmean[system[i], yearf[i]] + sum(beta.comp[i, 2:Nbatch])","\n")
   
   if(mod_type == "covar")
-    cat("    mu[i] <- alpha + mu.cov[i] + sum(beta.comp[i, 1:Nbatch])","\n")
+    cat("    mu0[i] <- alpha + mu.cov[i] + sum(beta.comp[i, 1:Nbatch])","\n")
   
   if(mod_type == "covar_trend")
-    cat("    mu[i] <- alpha + logmean[system[i], yearf[i]] + mu.cov[i] + sum(beta.comp[i, 2:Nbatch])","\n")
+    cat("    mu0[i] <- alpha + logmean[system[i], yearf[i]] + mu.cov[i] + sum(beta.comp[i, 2:Nbatch])","\n")
   
   if (mod_type %in% c("int", "int_re", "covar")) {
     cat("
@@ -125,10 +126,10 @@ make.model.file.hier <- function(filename,
           fitted.yr[i, j] <- exp(fitted.yr.log[i, j])\n",
       fill = TRUE)
     if (mod_type == "trend") {
-    cat("     fitted.yr.log[i, j] <- alpha + logmean[i, j] + beta[j, 4]\n",
+    cat("     fitted.yr.log[i, j] <- alpha + logmean[i, j] + beta[j, 4] + beta[sysyr.ind[i, j], Nbatch]\n",
         fill = TRUE)
     } else {
-      cat("     fitted.yr.log[i, j] <- alpha + logmean[i, j] + beta[j, 4] + mu.cov.mean[i, j]\n",
+      cat("     fitted.yr.log[i, j] <- alpha + logmean[i, j] + beta[j, 4] + mu.cov.mean[i, j] + beta[sysyr.ind[i, j], Nbatch]\n",
           fill = TRUE)
     }
     cat("      p.above[i, j] <- step(fitted.yr.log[i, j] - mean(fitted.yr.log[i, b.st:b.end]))
@@ -332,10 +333,8 @@ prepare_bugs_data <- function(spp, resp, mod_type, nbreak, pc) {
   
   components <- cbind(system, site, reach)
   if (mod_type %in% c("trend", "covar_trend"))
-    components <- cbind(components, yearf)
-    
-  #components <- cbind(components, sysyear)
-  
+    components <- cbind(components, yearf, sysyear)
+
   Nlevels <- apply(components, 2, max)
   
   Nbatch <- length(Nlevels)
@@ -435,9 +434,9 @@ prepare_bugs_data <- function(spp, resp, mod_type, nbreak, pc) {
                      yearf = yearf,
                      yearx = yearx,
                      Nyear = Nyear,
+                     sysyr.ind = sysyr.ind,
                      b.st = 1,
                      b.end = 3,
-#                     ryind = sysyr.ind,
                      tpr = trend.period,
                      Ntps = Ntps)
   } 

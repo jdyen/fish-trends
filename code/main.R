@@ -30,11 +30,12 @@ WINEPATH <- "/Applications/Wine.app/Contents/Resources/bin/winepath"
 
 # model settings
 resp_all <- c("abundance", "biomass")
-nits <- 500
-nburn <- 200
-nchain <- 1
+nits <- 1000
+nburn <- 500
+nchain <- 2
 debug <- FALSE
-mod_type <- c("int_re", "trend", "covar", "covar_trend")
+mod_type <- c("covar_trend")
+# mod_type <- c("int_re", "trend", "covar", "covar_trend")
 
 for (resp in resp_all) {
   
@@ -44,8 +45,9 @@ for (resp in resp_all) {
     r2_all <- cov_inc_all <- cov_or_all <- NULL
     
     # set species subset
-    species_sub <- c("goldenperch", "murraycod", "murrayriverrainbowfish",
-                     "silverperch", "troutcod")
+    species_sub <- "murraycod"
+    # species_sub <- c("goldenperch", "murraycod", "murrayriverrainbowfish",
+    #                  "silverperch", "troutcod")
 
     # loop through spatial management units
     for (spp in levels(alldat$species)[match(species_sub, levels(alldat$species))]) {
