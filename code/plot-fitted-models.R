@@ -8,36 +8,40 @@ source("./code/helpers.R")
 mod_list_all <- dir("./outputs/fitted/")
 
 # subset to the trend and covar_trend models for plotting
-mod_list <- mod_list_all[-grep("covar.RData", mod_list_all)]
-mod_list <- mod_list[-grep("int_re.RData", mod_list)]
+mod_list <- mod_list_all[-grep("covar_trend.rds", mod_list_all)]
+mod_list <- mod_list[-grep("int_re.rds", mod_list)]
 
 # set up a summary output table and predictor names for labels
-cov_names <- c("Mean annual flow",
-               "CV of annual flow", 
-               "CV of pre-spawning flow")
-summary_table <- matrix(NA, nrow = length(mod_list), ncol = 8)
+cov_names <- c("Mean daily flow (ML)",
+               "CV of daily flows")
+summary_table <- matrix(NA, nrow = length(mod_list), ncol = (2 + 2 * length(cov_names)))
 rownames(summary_table) <- seq_len(length(mod_list))
 for (i in seq_along(mod_list)) {
   
   mod <- get(load(paste0("./outputs/fitted/", mod_list[i])))
-  # plot fitted trends
-  pdf(paste0("./outputs/plots/fitted_",
-             sapply(strsplit(mod_list, "\\."), function(x) x[1])[i],
-             ".pdf"))
-  plot_fitted(mod$mod_sum,
-              mod$bugsdata,
-              mod$sp_names,
-              mod$spp, mod$resp)
-  dev.off()
-
-  # plot relative trends
-  pdf(paste0("./outputs/plots/trends_", mod$spp, "_", mod$resp, 
-             ifelse(!is.null(mod$mod_sum$cov_plot_vals), "_covar", ""), ".pdf"))
-  plot_trend(mod$mod_sum,
-             mod$bugsdata,
-             mod$sp_names,
-             mod$spp, mod$resp)
-  dev.off()
+  
+  if (length(grep("covar", mod_list[i])) == 0) {
+    
+    # plot fitted trends
+    pdf(paste0("./outputs/plots/fitted_",
+               sapply(strsplit(mod_list, "\\."), function(x) x[1])[i],
+               ".pdf"))
+    plot_fitted(mod$mod_sum,
+                mod$bugsdata,
+                mod$sp_names,
+                mod$spp, mod$resp)
+    dev.off()
+    
+    # plot relative trends
+    pdf(paste0("./outputs/plots/trends_", mod$spp, "_", mod$resp, 
+               ifelse(!is.null(mod$mod_sum$cov_plot_vals), "_covar", ""), ".pdf"))
+    plot_trend(mod$mod_sum,
+               mod$bugsdata,
+               mod$sp_names,
+               mod$spp, mod$resp)
+    dev.off()
+    
+  }
   
   # plot covariate associations
   if (!is.null(mod$mod_sum$cov_plot_vals)) {
@@ -53,7 +57,7 @@ for (i in seq_along(mod_list)) {
   if (!is.na(mod$mod_sum$cov_inc[1])) {
     summary_table[i, ] <- round(c(mod$mod_sum$r2, mean(mod$mod_sum$ppps), mod$mod_sum$cov_inc, mod$mod_sum$cov_or), 2)
   } else {
-    summary_table[i, ] <- round(c(mod$mod_sum$r2, mean(mod$mod_sum$ppps), rep(NA, 6)), 2)
+    summary_table[i, ] <- round(c(mod$mod_sum$r2, mean(mod$mod_sum$ppps), rep(NA, 2 * length(cov_names))), 2)
   }
   rownames(summary_table)[i] <- substr(mod_list[i], 1, nchar(mod_list[i]) - 6)
   
@@ -81,10 +85,10 @@ for (i in seq_along(sp_list)) {
                                             "abundance_covar_trend")],
                                    pcan = 2,
                                    var.names = c("trend", "flow"))
-  hp.bioms <- hier.part::partition(r2_sub[c("biomass_int_re",
-                                            "biomass_trend",
-                                            "biomass_covar",
-                                            "biomass_covar_trend")],
+  hp.bioms <- hier.part::partition(r2_sub[c("weight_int_re",
+                                            "weight_trend",
+                                            "weight_covar",
+                                            "weight_covar_trend")],
                                    pcan = 2,
                                    var.names = c("trend", "flow"))
   

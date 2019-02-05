@@ -92,6 +92,7 @@ alldat$Common.Name <- ifelse(alldat$Common.Name == "hardyhead",
 alldat$Common.Name <- ifelse(alldat$Common.Name == "blackfish",
                              "riverblackfish",
                              alldat$Common.Name)
+alldat$Common.Name <- gsub("carp", "commoncarp", alldat$Common.Name)
 
 # remove spp not of interest
 sp_to_rm <- c("carpgoldfishhybrid",

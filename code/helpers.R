@@ -4,7 +4,7 @@
 make.model.file.hier <- function(filename,
                                  mod_type = c("int", "int_re", "covar", "trend", "covar_trend"),
                                  bugsdata,
-                                 cont = 1) {
+                                 cont = TRUE) {
   
   sink(filename, append = FALSE)
   
@@ -16,24 +16,23 @@ make.model.file.hier <- function(filename,
       
       y[i] ~ dlnorm(mu[i], tau_main)
       res[i] <- log(y[i]) - mu[i]
-      mu[i] ~ dnorm(mu0[i], tau[1])
       ",
       fill = TRUE)
   
   if(mod_type == "int")
-    cat("    mu0[i] <- alpha","\n")
+    cat("    mu[i] <- alpha","\n")
   
   if(mod_type == "int_re")
-    cat("    mu0[i] <- alpha + sum(beta.comp[i, 1:Nbatch])","\n")
+    cat("    mu[i] <- alpha + sum(beta.comp[i, 1:Nbatch])","\n")
   
   if (mod_type == "trend")
-    cat("    mu0[i] <- alpha + logmean[system[i], yearf[i]] + sum(beta.comp[i, 2:Nbatch])","\n")
+    cat("    mu[i] <- alpha + logmean[system[i], yearf[i]] + sum(beta.comp[i, 2:Nbatch])","\n")
   
   if(mod_type == "covar")
-    cat("    mu0[i] <- alpha + mu.cov[i] + sum(beta.comp[i, 1:Nbatch])","\n")
+    cat("    mu[i] <- alpha + mu.cov[i] + sum(beta.comp[i, 1:Nbatch])","\n")
   
   if(mod_type == "covar_trend")
-    cat("    mu0[i] <- alpha + logmean[system[i], yearf[i]] + mu.cov[i] + sum(beta.comp[i, 2:Nbatch])","\n")
+    cat("    mu[i] <- alpha + logmean[system[i], yearf[i]] + mu.cov[i] + sum(beta.comp[i, 2:Nbatch])","\n")
   
   if (mod_type %in% c("int", "int_re", "covar")) {
     cat("
@@ -87,16 +86,16 @@ make.model.file.hier <- function(filename,
   
   cat("
       
-      alpha ~ dnorm(0,0.001)
+      alpha ~ dnorm(0,0.01)
       tau_main <- 1 / pow(sd_main, 2)
-      sd_main ~ dunif(0, 10)
+      sd_main ~ dunif(0, 1)
       
       for (b in 1:Nbatch) {
         for (l in 1:(Nlevels[b])) {
           beta[l, b] ~ dnorm(0, tau.rand[b])
         }
         tau.rand[b] <- 1 / pow(sd.rand[b], 2)
-        sd.rand[b] ~ dunif(0, 5)
+        sd.rand[b] ~ dunif(0, 1)
       }
       
       for (t in 1:3) {
@@ -113,9 +112,7 @@ make.model.file.hier <- function(filename,
     cat("for (j in 1:Nyear) {\n  fitted[i, j] <- exp(alpha + logmean[i, j])\n")
   if (mod_type %in% c("int", "int_re", "covar")) {
     if (mod_type == "covar") {
-      cat("      fitted[i] <- exp(alpha + mu.cov.mean[i, j])
-        }",
-          fill = TRUE)
+      cat("for (j in 1:Nyear) {\n  fitted[i, j] <- exp(alpha + mu.cov.mean[i, j])\n } \n } \n")
     } else {
       cat("      fitted[i] <- exp(alpha)
         }",
@@ -221,7 +218,7 @@ make.model.file.hier <- function(filename,
       cat(paste0("  beta.cov", i, "[1:", bugsdata$nbreak + 1,
                  "] <- jump.pw.poly.df.gen(x", i, "[1:",
                  bugsdata$nbreak + 1, "], kcov[",
-                 i, "], tau.cov, 0, 0)"))
+                 i, "], tau.cov, 0, 0)\n"))
     } 
     
     cat("
@@ -270,7 +267,7 @@ create_cov_matrix <- function(x, nbreak = 10) {
   xdum <- seq(min(x, na.rm = TRUE),
               max(x, na.rm = TRUE),
               length = (nbreak + 1))
-  xdum <- c(min(x, na.rm = TRUE) - 1, xdum[1:nbreak])
+  xdum <- c(min(x, na.rm = TRUE) - mean(diff(xdum)), xdum[1:nbreak])
   
   xdum
   
@@ -286,12 +283,14 @@ na_rm_fun <- function(x) {
 } 
 
 # prepare BUGS inputs (dummy matrix)
-prepare_bugs_data <- function(spp, resp, mod_type, nbreak, pc) {
+prepare_bugs_data <- function(alldat, spp, resp, mod_type, nbreak, pc) {
   
   dat <- alldat[alldat$species == spp, ]
+  dat$weight <- ifelse(is.na(dat$weight), mean(dat$weight, na.rm = TRUE), dat$weight)
   
-  dat_melt <- melt(dat, id.vars = c(colnames(dat)[c(1:6, 9)])) 
-  dat_melt$value[dat_melt$variable == "biomass"] <- dat_melt$value[dat_melt$variable == "biomass"] / dat_melt$intensity[dat_melt$variable == "biomass"]
+  dat_melt <- melt(dat, id.vars = c("date", "year", "site", "system", "reach",
+                                    "species", "sciname", "intensity")) 
+  dat_melt$value[dat_melt$variable == "weight"] <- dat_melt$value[dat_melt$variable == "weight"] / dat_melt$intensity[dat_melt$variable == "weight"]
   dat_melt$value[dat_melt$variable == "abundance"] <- dat_melt$value[dat_melt$variable == "abundance"] / dat_melt$intensity[dat_melt$variable == "abundance"]
   
   dat <- dcast(dat_melt,
@@ -300,13 +299,18 @@ prepare_bugs_data <- function(spp, resp, mod_type, nbreak, pc) {
   dat2 <- dcast(dat_melt,
                 date + year + site + system + reach + species ~ variable,
                 mean)
-  dat$mannf <- dat2$mannf
-  dat$msprf <- dat2$msprf
-  dat$msumf <- dat2$msumf
-  dat$maxaf <- dat2$maxaf
-  dat$covaf <- dat2$covaf
-  dat$mspwn <- dat2$mspwn
-  dat$cspwn <- dat2$cspwn
+  dat$mannf <- dat2$mannf_mld
+  dat$msprf <- dat2$msprf_mld
+  dat$msumf <- dat2$msumf_mld
+  dat$maxaf <- dat2$maxan_mld
+  dat$covaf <- dat2$covaf_mld
+  dat$mspwn <- dat2$mspwn_mld
+  dat$cspwn <- dat2$covsp_mld
+  dat$minaf <- dat2$minan_mld
+  dat$mdpth <- dat2$madpth_m
+  dat$cvdpth <- dat2$cvdpth_m
+  dat$maxdp <- dat2$maxdpth_m
+  dat$mindp <- dat2$mindpth_m
   rm(dat2)
   
   y <- dat[, resp]
@@ -341,7 +345,7 @@ prepare_bugs_data <- function(spp, resp, mod_type, nbreak, pc) {
   N <- length(y)
   Nyear <- max(yearf)
   
-  kmax <- max(floor(Nyear / 5), 1)
+  kmax <- max(floor(Nyear / 4), 1)
   
   meanyr <- min(dat$year) 
   sdyr <- sd(dat$year)
@@ -367,7 +371,7 @@ prepare_bugs_data <- function(spp, resp, mod_type, nbreak, pc) {
   if (mod_type %in% c("covar", "covar_trend")) {
     
     # extract plot variable from predictors
-    Xcov <- cbind(dat$mannf, dat$covaf, dat$cspwn)
+    Xcov <- cbind(dat$mannf, dat$covaf)
     
     # interpolate NAs in covariate data
     Xcov <- apply(Xcov, 2, na_rm_fun)
@@ -413,7 +417,7 @@ prepare_bugs_data <- function(spp, resp, mod_type, nbreak, pc) {
               "y.sim",
               "fitted",
               "ppp")
-  if (mod_type %in% c("int", "int_re", "covar")) {
+  if (mod_type %in% c("int", "int_re")) {
     bugsdata <- list(y = y,
                      N = N,
                      Nsystem = Nsystem,
@@ -423,22 +427,34 @@ prepare_bugs_data <- function(spp, resp, mod_type, nbreak, pc) {
                      Nbatch = Nbatch,
                      kmax = kmax)
   } else {
-    bugsdata <- list(y = y,
-                     N = N,
-                     Nsystem = Nsystem,
-                     system = system,
-                     comp = components,
-                     Nlevels = Nlevels, 
-                     Nbatch = Nbatch,
-                     kmax = kmax,
-                     yearf = yearf,
-                     yearx = yearx,
-                     Nyear = Nyear,
-                     sysyr.ind = sysyr.ind,
-                     b.st = 1,
-                     b.end = 3,
-                     tpr = trend.period,
-                     Ntps = Ntps)
+    if (mod_type %in% c("trend", "covar_trend")) {
+      bugsdata <- list(y = y,
+                       N = N,
+                       Nsystem = Nsystem,
+                       system = system,
+                       comp = components,
+                       Nlevels = Nlevels, 
+                       Nbatch = Nbatch,
+                       kmax = kmax,
+                       yearf = yearf,
+                       yearx = yearx,
+                       Nyear = Nyear,
+                       sysyr.ind = sysyr.ind,
+                       b.st = 1,
+                       b.end = 3,
+                       tpr = trend.period,
+                       Ntps = Ntps)
+    } else {
+      bugsdata <- list(y = y,
+                       N = N,
+                       Nsystem = Nsystem,
+                       system = system,
+                       comp = components,
+                       Nlevels = Nlevels, 
+                       Nbatch = Nbatch,
+                       kmax = kmax,
+                       Nyear = Nyear)
+    }
   } 
   if (mod_type %in% c("trend", "covar_trend")) {
     params <- c(params, "logmean", "trend", "pch", "pinc",
@@ -571,7 +587,7 @@ summarise_fitted <- function(dat, fit, bugsdata, mod_type) {
 }  
 
 # plot fitted models
-plot_fitted <- function(mod_sum, bugsdata, sp_names, spp, resp) {
+plot_fitted <- function(mod_sum, bugsdata, sp_names, spp, resp, ylab = NULL) {
   
   sysnum <- bugsdata$Nsystem + 1
   fitted.r <- mod_sum$fitted[grep(paste0("\\[", sysnum, ","), rownames(mod_sum$fitted)), ]
@@ -600,23 +616,36 @@ plot_fitted <- function(mod_sum, bugsdata, sp_names, spp, resp) {
          pch = 16,
          col = ggplot2::alpha("grey30", 0.5))
   mtext("Year", side = 1, adj = 0.5, line = 2.5)
-  mtext(paste0(sp_names$full[match(spp, sp_names$code)], " ", resp, " CPUE"), side = 2, adj = 0.5, line = 3.0)
+  if (is.null(ylab))
+    ylab <- paste0(resp, " CPUE")
+  mtext(ylab, side = 2, adj = 0.5, line = 3.0)
   
 } 
 
-plot_trend <- function(mod_sum, bugsdata, sp_names, spp, resp) {
+plot_trend <- function(mod_sum, bugsdata, sp_names, spp, resp, system = NULL) {
   
-  sysnum <- bugsdata$Nsystem + 1
+  if (is.null(system)) {
+    sysnum <- bugsdata$Nsystem + 1
+  } else {
+    sysnum <- system
+  }
+  
   trends.r <- mod_sum$trends[grep(paste0("\\[", sysnum, ","), rownames(mod_sum$trends)), ]
-   
+
+  # if (spp == "goldenperch")
+  #   trends.r <- trends.r[-nrow(trends.r), ]
+  # if (spp == "silverperch")
+  #   trends.r <- trends.r[-c(1:3, nrow(trends.r)), ]
+  
   trend_upper95 <- trends.r$pc97.5
   trend_lower95 <- trends.r$pc2.5
   trend_upper50 <- trends.r$pc75
   trend_lower50 <- trends.r$pc25
   x_trend <- trends.r$Year
+  ylim_set <- range(c(trend_lower95, trend_lower50, trend_upper50, trend_upper95))
   plot(trend_upper50 ~ x_trend,
        type = "n",
-       ylim = range(c(trend_lower95, trend_lower50, trend_upper50, trend_upper95)),
+       ylim = ylim_set,
        bty = "l", las = 1,
        xlab = "", ylab = "")
   polygon(c(x_trend, rev(x_trend)),
@@ -627,11 +656,11 @@ plot_trend <- function(mod_sum, bugsdata, sp_names, spp, resp) {
           c(trend_upper50, rev(trend_lower50)),
           col = ggplot2::alpha("grey60", 0.5),
           border = NA)
-  lines(trends.r$mean ~ x_trend,
+  lines(trends.r$pc50 ~ x_trend,
         lwd = 2)
   lines(c(min(x_trend) - 1, max(x_trend) + 1), c(0, 0), lty = 2)
   mtext("Year", side = 1, adj = 0.5, line = 2.5)
-  mtext("Trend (proportional change per year)", side = 2, adj = 0.5, line = 3.0)
+  mtext("Trend", side = 2, adj = 0.5, line = 3.0)
   
 }
 
@@ -641,15 +670,17 @@ plot_covars <- function(mod_sum, bugsdata, resp, cov_names = NULL, covar_std) {
   if (is.null(cov_names))
     cov_names <- letters
   
-  cov_mean <- matrix(mod_sum$cov_plot_vals[, "mean"], ncol = bugsdata$Q, byrow = TRUE)
-  cov_lower <- matrix(mod_sum$cov_plot_vals[, "2.5%"], ncol = bugsdata$Q, byrow = TRUE)
-  cov_upper <- matrix(mod_sum$cov_plot_vals[, "97.5%"], ncol = bugsdata$Q, byrow = TRUE)
+  cov_mean <- exp(matrix(mod_sum$cov_plot_vals[, "mean"], ncol = bugsdata$Q, byrow = TRUE))
+  cov_lower <- exp(matrix(mod_sum$cov_plot_vals[, "2.5%"], ncol = bugsdata$Q, byrow = TRUE))
+  cov_upper <- exp(matrix(mod_sum$cov_plot_vals[, "97.5%"], ncol = bugsdata$Q, byrow = TRUE))
   
   if (is.null(cov_names))
     cov_names <- letters[seq_len(bugsdata$Q)]
   
   oldmfrow <- par()$mfrow
-  par(mfrow = c(2, 2))
+  round_val <- list(c(-2, rep(-3, 4)),
+                    2, 2, 2)
+  par(mfrow = c(1, 2))
   for (i in seq_len(bugsdata$Q)) {
     x_set <- bugsdata$Xplot[2:nrow(bugsdata$Xplot), i]
     x_adj <- covar_std$mean[i] + (x_set * covar_std$x[i])
@@ -657,17 +688,71 @@ plot_covars <- function(mod_sum, bugsdata, resp, cov_names = NULL, covar_std) {
          type = "l", bty = "l", las = 1,
          xaxt = "n",
          xlab = cov_names[i], ylab = paste0("Effect on ", resp),
-         ylim = range(c(cov_mean, cov_lower, cov_upper)))
+         ylim = range(c(0, cov_mean[, i], cov_lower[, i], cov_upper[, i])))
     axis(1, at = seq(min(x_set), max(x_set), length = 5),
-         labels = seq(min(x_adj), max(x_adj), length = 5))
+         labels = round(seq(min(x_adj), max(x_adj), length = 5), round_val[[i]]))
     polygon(c(bugsdata$Xplot[2:nrow(bugsdata$Xplot), i], bugsdata$Xplot[nrow(bugsdata$Xplot):2, i]),
             c(cov_lower[, i], rev(cov_upper[, i])),
             border = NA,
             col = ggplot2::alpha("gray50", 0.5))
     lines(cov_mean[, i] ~ bugsdata$Xplot[2:nrow(bugsdata$Xplot), i])
-    lines(range(bugsdata$Xplot[2:nrow(bugsdata$Xplot), i]), c(0, 0), lty = 2)
-    points(bugsdata$y ~ bugsdata$Xcov[, i],
-           pch = 16, col = ggplot2::alpha("gray25", 0.5))
+    lines(range(bugsdata$Xplot[2:nrow(bugsdata$Xplot), i]), c(1, 1), lty = 2)
   }  
+  
+}
+
+# plot covariate effects
+plot_covars_single <- function(mod_sum, bugsdata, resp, cov_names = NULL, covar_std,
+                               subset = 1) {
+  
+  if (is.null(cov_names))
+    cov_names <- letters
+  
+  cov_mean <- exp(matrix(mod_sum$cov_plot_vals[, "mean"], ncol = bugsdata$Q, byrow = TRUE))
+  cov_lower <- exp(matrix(mod_sum$cov_plot_vals[, "2.5%"], ncol = bugsdata$Q, byrow = TRUE))
+  cov_upper <- exp(matrix(mod_sum$cov_plot_vals[, "97.5%"], ncol = bugsdata$Q, byrow = TRUE))
+  
+  if (is.null(cov_names))
+    cov_names <- letters[seq_len(bugsdata$Q)]
+  
+  oldmfrow <- par()$mfrow
+  round_val <- list(c(-2, rep(-3, 4)),
+                    2, 2, 2)
+  i <- subset
+  x_set <- bugsdata$Xplot[2:nrow(bugsdata$Xplot), i]
+  x_adj <- covar_std$mean[i] + (x_set * covar_std$x[i])
+  plot(cov_mean[, i] ~ x_set,
+       type = "l", bty = "l", las = 1,
+       xaxt = "n",
+       xlab = cov_names[i], ylab = paste0("Effect on ", ifelse(resp == "weight", "biomass", "abundance")),
+       ylim = range(c(0, cov_mean[, i], cov_lower[, i], cov_upper[, i])))
+  axis(1, at = seq(min(x_set), max(x_set), length = 5),
+       labels = round(seq(min(x_adj), max(x_adj), length = 5), round_val[[i]]))
+  polygon(c(bugsdata$Xplot[2:nrow(bugsdata$Xplot), i], bugsdata$Xplot[nrow(bugsdata$Xplot):2, i]),
+          c(cov_lower[, i], rev(cov_upper[, i])),
+          border = NA,
+          col = ggplot2::alpha("gray50", 0.5))
+  lines(cov_mean[, i] ~ bugsdata$Xplot[2:nrow(bugsdata$Xplot), i])
+  lines(range(bugsdata$Xplot[2:nrow(bugsdata$Xplot), i]), c(1, 1), lty = 2)
+  
+}
+
+system_switch_fun <- function(x) {
+  
+  if (!is.character(x)) {
+    x <- as.character(x)
+  }
+  
+  out <- rep(NA, length(x))
+  for (i in seq_along(x)) {
+    out[i] <- switch(substr(x[i], 1, 2),
+                     "GO" = "GOULBURN",
+                     "BR" = "BROKEN",
+                     "PC" = "PYRAMID CK",
+                     "LO" = "LODDON",
+                     "CA" = "CAMPASPE")
+  }  
+  
+  out
   
 }

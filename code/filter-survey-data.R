@@ -1,5 +1,8 @@
 # filter data down to a species and river subset
 
+# add flow data
+alldat <- cbind(alldat, flow_data)
+
 # set systems of interest
 system_sub <- c("BROKEN",
                 "LOWERMURRAY",
@@ -11,51 +14,31 @@ system_sub <- c("BROKEN",
                 "OVENS")
 alldat <- alldat[-which(is.na(match(alldat$SYSTEM, system_sub))), ]
 
-# clean up common names
-alldat$Common.Name <- tolower(alldat$Common.Name)
-alldat$Common.Name <- gsub(" ", "", alldat$Common.Name)
-alldat$Common.Name <- gsub("-[[:digit:]]*", "", alldat$Common.Name)
-alldat$Common.Name <- gsub("/", "", alldat$Common.Name)
-alldat$Common.Name <- gsub("sp\\.", "", alldat$Common.Name)
-alldat$Common.Name <- gsub("flatheadedgudgeon", "flatheadgudgeon", alldat$Common.Name)
-alldat$Common.Name <- gsub("europeancarp", "carp", alldat$Common.Name)
-alldat$Common.Name <- gsub("redfinperch", "redfin", alldat$Common.Name)
-alldat$Common.Name <- ifelse(alldat$Common.Name == "weatherloach",
-                             "orientalweatherloach",
-                             alldat$Common.Name)
-alldat$Common.Name <- ifelse(alldat$Common.Name == "rainbowfish",
-                             "murrayriverrainbowfish",
-                             alldat$Common.Name)
-alldat$Common.Name <- ifelse(alldat$Common.Name == "hardyhead",
-                             "unspeckedhardyhead",
-                             alldat$Common.Name)
-alldat$Common.Name <- ifelse(alldat$Common.Name == "blackfish",
-                             "riverblackfish",
-                             alldat$Common.Name)
-
-# remove spp not of interest
-sp_to_rm <- c("carpgoldfishhybrid",
-              "carpgudgeoncomplex",
-              "commonyabby",
-              "easternsnakeneckedturtle",
-              "freshwatershrimp",
-              "glenelgspinyfreshwatercrayfish",
-              "goldfish",
-              "hypseleostris",
-              "murrayspinycrayfish",
-              "nofish",
-              "unidentifiedcod",
-              "unknown",
-              "",
-              "codspp.",
-              "yabbie",
-              "longneckturtle",
-              "gudgeons",
-              "murraycray",
-              "murraycodtroutcodhybrid")
-alldat <- alldat[-which(!is.na(match(alldat$Common.Name, sp_to_rm))), ]
-if (any(is.na(alldat$Common.Name)))
-  alldat <- alldat[-which(is.na(alldat$Common.Name)), ]
+# keep spp of interest
+alldat$Scientific.Name <- as.character(alldat$Scientific.Name)
+alldat$Scientific.Name <- gsub(" ", "", alldat$Scientific.Name)
+alldat$Scientific.Name <- gsub("Maccullochellapeeliipeelii", "Maccullochellapeelii",
+                               alldat$Scientific.Name)
+alldat$Scientific.Name <- tolower(alldat$Scientific.Name)
+sp_to_keep <- c("maccullochellapeelii",
+                "maccullochellamacquariensis",
+                "macquariaambigua",
+                "bidyanusbidyanus",
+                "melanotaeniafluviatilis",
+                "retropinnasemoni",
+                "gadopsismarmoratus",
+                "cyprinuscarpio")
+alldat <- alldat[alldat$Scientific.Name %in% sp_to_keep, ]
+common_names <- c("murraycod",
+                  "troutcod",
+                  "goldenperch",
+                  "silverperch",
+                  "murrayriverrainbowfish",
+                  "australiansmelt",
+                  "riverblackfish",
+                  "commoncarp")
+names(common_names) <- sp_to_keep
+alldat$Common.Name <- common_names[alldat$Scientific.Name]
 
 # create SRA version of weights
 alldat$WEIGHT_SRA <- alldat$WEIGHT
@@ -95,118 +78,48 @@ for (i in seq_along(sp_tmp)) {
     dat_tmp$IMPUTED[na_sub] <- TRUE
     
     # return estimated data to full data set
-    alldat[which(alldat$Common.Name == sp_tmp[i]), ] <- dat_tmp
+    alldat[alldat$Common.Name == sp_tmp[i], ] <- dat_tmp
     
   }
 }
 
-# reformat dates
-alldat$Date <- dmy(alldat$Event_Date)
-
 # arrange alldat to have more consistent set of variables
-alldat <- data.frame(date = alldat$Date,
+alldat <- data.frame(date = alldat$Event_Date,
                      year = alldat$YEAR,
                      site = alldat$SITE_CODE,
                      system = alldat$SYSTEM,
                      reach = alldat$Reach,
                      species = alldat$Common.Name,
-                     biomass = alldat$WEIGHT,
+                     sciname = alldat$Scientific.Name,
+                     weight = alldat$WEIGHT,
                      abundance = alldat$Total.Sampled,
-                     intensity = (alldat$total_no_passes * alldat$seconds))
+                     recorded = alldat$recorded,
+                     intensity = (alldat$total_no_passes * alldat$seconds),
+                     mannf_mld = alldat$mannf_mld,
+                     msprf_mld = alldat$msprf_mld,
+                     msumf_mld = alldat$msumf_mld,
+                     covaf_mld = alldat$covaf_mld,
+                     mspwn_mld = alldat$mspwn_mld,
+                     covsp_mld = alldat$covsp_mld,
+                     maxan_mld = alldat$maxan_mld,
+                     minan_mld = alldat$minan_mld,
+                     madpth_m = alldat$madpth_m,
+                     cvdpth_m = alldat$cvdpth_m,
+                     maxdpth_m = alldat$maxdpth_m,
+                     mindpth_m = alldat$mindpth_m)
 
-alldat$reach_alt <- alldat$reach
-alldat$reach_alt <- ifelse(alldat$system == "BROKEN",
-                           ifelse(alldat$reach_alt == 4, 5, alldat$reach_alt), # downstream
-                           alldat$reach_alt)
-alldat$reach_alt <- ifelse(alldat$system == "THOMSON",
-                           ifelse(alldat$reach_alt == 2, 3,             # downstream
-                                  ifelse(alldat$reach_alt == 6, 5,      # upstream
-                                         alldat$reach_alt)),
-                           alldat$reach_alt)
-alldat$reach_alt <- ifelse(alldat$system == "LODDON",
-                           ifelse(alldat$reach_alt == 2, 3,             # downstream
-                                  ifelse(alldat$reach_alt == 5, 4,      # upstream
-                                         alldat$reach_alt)),
-                           alldat$reach_alt)
-
-mean_ann_flow_vec <- mean_spr_flow_vec <- mean_sum_flow_vec <- rep(NA, nrow(alldat))
-maxm_ann_flow_vec <- covn_ann_flow_vec <- rep(NA, nrow(alldat))
-mean_spwn_flow_vec <- cov_spwn_flow_vec <- rep(NA, nrow(alldat))
-for (i in seq_len(nrow(alldat))) {
-  row_tmp <- which((mean_flow_stats$system == alldat$system[i]) &
-                     (mean_flow_stats$reach == alldat$reach[i]) &
-                     (mean_flow_stats$year == alldat$year[i]))
-  if (!length(row_tmp))
-    row_tmp <- which((mean_flow_stats$system == alldat$system[i]) &
-                       (mean_flow_stats$reach == alldat$reach_alt[i]) &
-                       (mean_flow_stats$year == alldat$year[i]))
-  if (length(row_tmp)) {
-    mean_ann_flow_vec[i] <- mean_flow_stats$mean_ann_flow[row_tmp]
-    mean_spr_flow_vec[i] <- mean_flow_stats$mean_spr_flow[row_tmp]
-    mean_sum_flow_vec[i] <- mean_flow_stats$mean_sum_flow[row_tmp]
-    maxm_ann_flow_vec[i] <- mean_flow_stats$max_ann_flow[row_tmp]
-    covn_ann_flow_vec[i] <- mean_flow_stats$cov_ann_flow[row_tmp]
-    mean_spwn_flow_vec[i] <- mean_flow_stats$mean_spwn_flow[row_tmp]
-    cov_spwn_flow_vec[i] <- mean_flow_stats$cov_spwn_flow[row_tmp]
-  }
-}
-alldat$mannf <- mean_ann_flow_vec
-alldat$msprf <- mean_spr_flow_vec
-alldat$msumf <- mean_sum_flow_vec
-alldat$maxaf <- maxm_ann_flow_vec
-alldat$covaf <- covn_ann_flow_vec
-alldat$mspwn <- mean_spwn_flow_vec
-alldat$cspwn <- cov_spwn_flow_vec
+# remove missing data
+# alldat <- alldat[!is.na(alldat$abundance), ]
+# alldat <- alldat[!is.na(alldat$intensity), ]
+# alldat <- alldat[!is.na(alldat$weight), ]
 
 # set up species names for plots
-sp_names <- data.frame(full = c("Australian bass",
-                                "Australian grayling",
-                                "Australian smelt",
-                                "Black bream",
-                                "Bony bream",
-                                "Brown trout",
-                                "Carp",
-                                "Carp gudgeon",
-                                "Common galaxias",
-                                "Dwarf flathead gudgeon",
-                                "Eastern gambusia",
-                                "Eel",
-                                "Estuary perch",
-                                "Flathead galaxias",
-                                "Flathead gudgeon",
+sp_names <- data.frame(full = c("Australian smelt",
+                                "Common Carp",
                                 "Golden perch",
-                                "Long-finned eel",
-                                "Luderick",
-                                "Mountain galaxias",
                                 "Murray cod",
                                 "Murray river rainbowfish",
-                                "Obscure galaxias",
-                                "Oriental weather loach",
-                                "Pouched lamprey",
-                                "Pygmy perch",
-                                "Rainbow trout",
-                                "Redfin",
                                 "River blackfish",
-                                "River garfish",
-                                "Roach",
-                                "Sea mullet",
-                                "Short finned eel",
-                                "Short headed lamprey",
                                 "Silver perch",
-                                "Southern pygmy perch",
-                                "Tench",
-                                "Trout cod",
-                                "Tupong",
-                                "Two spined blackfish",
-                                "Unspecked hardyhead",
-                                "Variegated pygmy perch",
-                                "Western carp gudgeon",
-                                "Yarra pygmy perch",
-                                "Yellow eyed mullet"),
+                                "Trout cod"),
                        code = as.character(levels(alldat$species)))
-
-# clean up NAs in reach column
-if (any(is.na(alldat$reach))) {
-  alldat <- alldat[-which(is.na(alldat$reach)), ]
-}
-alldat$reach_alt <- NULL
