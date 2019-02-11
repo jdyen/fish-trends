@@ -11,6 +11,13 @@ mod_list_all <- dir("./outputs/fitted/")
 mod_list <- mod_list_all[-grep("covar_trend.rds", mod_list_all)]
 mod_list <- mod_list[-grep("int_re.rds", mod_list)]
 
+# pull out ppp values for all models
+ppp_table <- matrix(NA, nrow = length(mod_list_all), ncol = 2)
+for (i in seq_along(mod_list_all)) {
+  mod <- get(load(paste0("./outputs/fitted/", mod_list_all[i])))
+  ppp_table[i, ] <- round(c(mod$mod_sum$r2, mean(mod$mod_sum$ppps)), 2)
+}
+
 # set up a summary output table and predictor names for labels
 cov_names <- c("Mean daily flow (ML)",
                "CV of daily flows")

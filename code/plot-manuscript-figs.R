@@ -18,15 +18,16 @@ cov_names <- c("Mean daily flow (ML)",
 sp_name <- c('Murray cod', 'Trout cod', 'Golden perch',
              'Silver perch', 'Murray river rainbowfish',
              'Common carp')
-sp_name_covs_vol <- c('Trout cod', 'Golden perch', 'Golden perch', 'Silver perch')
-sp_name_covs_var <- c('Trout cod', rep('Silver perch', 3))
+sp_name_covs_vol <- c('Murray cod', 'Murray cold', 'Silver perch', 'Silver perch')
+sp_name_covs_var <- c('Murray river rainbowfish', 'Murray river rainbowfish',
+                      'Silver perch', 'Common carp')
 
 # trends plot
 mod_list_abund <- mod_list[grep('abundance.rds', mod_list)][c(3, 6, 2, 5, 4, 1)]
 mod_list_biom <- mod_list[grep('weight.rds', mod_list)][c(3, 6, 2, 5, 4, 1)]
-mod_list_covs_vol <- mod_list_all[c(46, 10, 14, 34)]
+mod_list_covs_vol <- mod_list_all[c(18, 22, 34, 38)]
 vars_vol <- rep(1, 4)
-mod_list_covs_var <- mod_list_all[c(42, 46, 34, 38)]
+mod_list_covs_var <- mod_list_all[c(26, 30, 38, 6)]
 vars_var <- rep(2, 4)
 
 # plot fitted abundance trends

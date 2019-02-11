@@ -667,6 +667,8 @@ plot_trend <- function(mod_sum, bugsdata, sp_names, spp, resp, system = NULL) {
 # plot covariate effects
 plot_covars <- function(mod_sum, bugsdata, resp, cov_names = NULL, covar_std) {
   
+  resp <- ifelse(resp == "weight", "biomass", resp)
+  
   if (is.null(cov_names))
     cov_names <- letters
   
