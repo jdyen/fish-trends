@@ -17,6 +17,7 @@ for (i in seq_along(mod_list_all)) {
   mod <- get(load(paste0("./outputs/fitted/", mod_list_all[i])))
   ppp_table[i, ] <- round(c(mod$mod_sum$r2, mean(mod$mod_sum$ppps)), 2)
 }
+rownames(ppp_table) <- mod_list_all
 
 # set up a summary output table and predictor names for labels
 cov_names <- c("Mean daily flow (ML)",
@@ -105,3 +106,26 @@ for (i in seq_along(sp_list)) {
   
 }
 names(hp_out) <- names(r2_out) <- sp_list
+
+mod_list_sub <- mod_list_all[grep("covar_trend", mod_list_all)]
+conditional_pinc <- matrix(NA, nrow = length(mod_list_sub), ncol = 4)
+for (i in seq_along(mod_list_sub)) {
+  
+  mod <- get(load(paste0("./outputs/fitted/", mod_list_sub[i])))
+  
+  # plot covariate associations
+  if (!is.null(mod$mod_sum$cov_plot_vals)) {
+    pdf(paste0("./outputs/plots/conditional_", mod$spp, "_flow_effects_", mod$resp, ".pdf"))
+    plot_covars(mod$mod_sum,
+                mod$bugsdata,
+                resp = mod$resp,
+                cov_names = cov_names,
+                covar_std = mod$covar_std)
+    dev.off()
+  }
+  
+  if (!is.na(mod$mod_sum$cov_inc[1])) {
+    conditional_pinc[i, ] <- round(c(mod$mod_sum$cov_inc, mod$mod_sum$cov_or), 2)
+  }
+  
+}

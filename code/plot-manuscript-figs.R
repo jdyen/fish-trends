@@ -18,16 +18,16 @@ cov_names <- c("Mean daily flow (ML)",
 sp_name <- c('Murray cod', 'Trout cod', 'Golden perch',
              'Silver perch', 'Murray river rainbowfish',
              'Common carp')
-sp_name_covs_vol <- c('Murray cod', 'Murray cold', 'Silver perch', 'Silver perch')
-sp_name_covs_var <- c('Murray river rainbowfish', 'Murray river rainbowfish',
-                      'Silver perch', 'Common carp')
+sp_name_covs_vol <- c('Golden perch', 'Golden perch', 'Silver perch', 'Silver perch')
+sp_name_covs_var <- c('Common carp', 'Common carp',
+                      'Silver perch', 'Silver perch')
 
 # trends plot
 mod_list_abund <- mod_list[grep('abundance.rds', mod_list)][c(3, 6, 2, 5, 4, 1)]
 mod_list_biom <- mod_list[grep('weight.rds', mod_list)][c(3, 6, 2, 5, 4, 1)]
-mod_list_covs_vol <- mod_list_all[c(18, 22, 34, 38)]
+mod_list_covs_vol <- mod_list_all[c(9, 13, 33, 37)]
 vars_vol <- rep(1, 4)
-mod_list_covs_var <- mod_list_all[c(26, 30, 38, 6)]
+mod_list_covs_var <- mod_list_all[c(1, 5, 33, 37)]
 vars_var <- rep(2, 4)
 
 # plot fitted abundance trends
@@ -146,9 +146,8 @@ sp_list_ordered <- c("murraycod", "troutcod", "goldenperch",
                      "commoncarp")
 for (i in seq_along(sp_list_ordered)) {
   
-  mod_list_sub <- mod_list_all[grep(sp_list_ordered[i], mod_list_all)][c(2, 6)]
-  print(mod_list_sub)
-  
+  mod_list_sub <- mod_list_all[grep(sp_list_ordered[i], mod_list_all)][c(1, 5)]
+
   pdf(file = paste0("./outputs/plots/FigS", i + 2, ".pdf"), width = 6, height = 8)
   par(mfrow = c(2, 2), mar = c(4.5, 4.3, 2.1, 1.1))
   for (j in seq_along(mod_list_sub)) {

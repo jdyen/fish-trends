@@ -25,7 +25,7 @@ Non-linear, variable-selection models to identify trends in native fish abundanc
 
 Maintainer: Jian Yen (jdl.yen@gmail.com)
 
-Updated: 16 May 2018
+Updated: 11 February 2019
 
 ## Usage
 TO ADD
