@@ -1,7 +1,7 @@
-# fish-trends
-Code to examine trends in native fish abundance and biomass in Victorian rivers. Fitted models display trends in abundance and biomass and identify the strength of associations between trends and metrics of river flow.
+# Examining temporal trends in fish populations
+Code to examine trends in fish abundance and biomass in Victorian rivers. Fitted models display trends in abundance and biomass and identify the strength of associations between trends and metrics of river flow.
 
-Copyright &copy; 2018, Jian Yen
+Copyright &copy; 2020, Jian Yen
 
 *****
 
@@ -20,14 +20,9 @@ limitations under the License.
 
 *****
 
-## Overview
-Non-linear, variable-selection models to identify trends in native fish abundance and biomass and to identify associations with flow variables.
-
+## Details
 Maintainer: Jian Yen (jdl.yen@gmail.com)
 
-Updated: 11 February 2019
-
-## Usage
-TO ADD
+Updated: 19 May 2020
 
 

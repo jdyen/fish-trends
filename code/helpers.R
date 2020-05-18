@@ -282,35 +282,34 @@ na_rm_fun <- function(x) {
   
 } 
 
+rebase_factor <- function(x) {
+  as.integer(as.factor(x))
+}
+
 # prepare BUGS inputs (dummy matrix)
-prepare_bugs_data <- function(alldat, spp, resp, mod_type, nbreak, pc) {
+prepare_bugs_data <- function(surveys, flow, species, response, mod_type, nbreak, pc) {
+
+  dat <- cbind(surveys, flow)  
+  dat <- dat[dat$spp_formatted == species, ]
+  dat$year <- year(dat$date_formatted)
+
+  covar_names <- colnames(flow)
   
-  dat <- alldat[alldat$species == spp, ]
-  dat$weight <- ifelse(is.na(dat$weight), mean(dat$weight, na.rm = TRUE), dat$weight)
-  
-  dat_melt <- melt(dat, id.vars = c("date", "year", "site", "system", "reach",
-                                    "species", "sciname", "intensity")) 
-  dat_melt$value[dat_melt$variable == "weight"] <- dat_melt$value[dat_melt$variable == "weight"] / dat_melt$intensity[dat_melt$variable == "weight"]
-  dat_melt$value[dat_melt$variable == "abundance"] <- dat_melt$value[dat_melt$variable == "abundance"] / dat_melt$intensity[dat_melt$variable == "abundance"]
+  dat_melt <- melt(dat,
+                   id.vars = c("date_formatted", "year", "site", "system", "reach",
+                               "spp_formatted", "ef_seconds_total")) 
+  idx <- dat_melt$variable == "weight_g"
+  idy <- dat_melt$variable == "abundance"
+  dat_melt$value[idx] <- dat_melt$value[idx] / dat_melt$ef_seconds_total[idx]
+  dat_melt$value[idy] <- dat_melt$value[idy] / dat_melt$ef_seconds_total[idy]
   
   dat <- dcast(dat_melt,
-               date + year + site + system + reach + species ~ variable,
+               date_formatted + year + site + system + reach + spp_formatted ~ variable,
                sum)
   dat2 <- dcast(dat_melt,
-                date + year + site + system + reach + species ~ variable,
+                date_formatted + year + site + system + reach + spp_formatted ~ variable,
                 mean)
-  dat$mannf <- dat2$mannf_mld
-  dat$msprf <- dat2$msprf_mld
-  dat$msumf <- dat2$msumf_mld
-  dat$maxaf <- dat2$maxan_mld
-  dat$covaf <- dat2$covaf_mld
-  dat$mspwn <- dat2$mspwn_mld
-  dat$cspwn <- dat2$covsp_mld
-  dat$minaf <- dat2$minan_mld
-  dat$mdpth <- dat2$madpth_m
-  dat$cvdpth <- dat2$cvdpth_m
-  dat$maxdp <- dat2$maxdpth_m
-  dat$mindp <- dat2$mindpth_m
+  dat[, covar_names] <- dat2[, covar_names]
   rm(dat2)
   
   y <- dat[, resp]
@@ -326,13 +325,13 @@ prepare_bugs_data <- function(alldat, spp, resp, mod_type, nbreak, pc) {
   
   year <- dat$year
   
-  yearf <- as.numeric(as.factor(year))
-  site <- as.numeric(as.factor(as.integer(dat$site)))
-  system <- as.numeric(as.factor(as.integer(dat$system)))
-  site <- as.numeric(ordered(as.factor(system):as.factor(site)))
-  sysyear <- as.numeric(ordered(as.factor(system):as.factor(yearf)))
-  reach <- as.numeric(as.factor(dat$reach))
-  reach <- as.numeric(ordered(as.factor(system):as.factor(reach)))
+  yearf <- rebase_factor(year)
+  site <- rebase_factor(dat$site)
+  system <- rebase_factor(dat$system)
+  site <- as.integer(ordered(as.factor(system):as.factor(site)))
+  sysyear <- as.integer(ordered(as.factor(system):as.factor(yearf)))
+  reach <- as.integer(dat$reach)
+  reach <- as.integer(ordered(as.factor(system):as.factor(reach)))
   Nsystem <- max(system)
   
   components <- cbind(system, site, reach)
@@ -371,7 +370,7 @@ prepare_bugs_data <- function(alldat, spp, resp, mod_type, nbreak, pc) {
   if (mod_type %in% c("covar", "covar_trend")) {
     
     # extract plot variable from predictors
-    Xcov <- cbind(dat$mannf, dat$covaf)
+    Xcov <- dat[, covar_names]
     
     # interpolate NAs in covariate data
     Xcov <- apply(Xcov, 2, na_rm_fun)
@@ -481,16 +480,17 @@ prepare_bugs_data <- function(alldat, spp, resp, mod_type, nbreak, pc) {
   file_tmp <- paste0("trend_model_", spp, ".txt")
   filename <- paste0(getwd(), "/code/temp_files/", file_tmp)
   
-  out <- list(dat = dat,
-              bugsdata = bugsdata,
-              inits = inits,
-              params = params,
-              covar_std = covar_std,
-              filename = filename,
-              file_tmp = file_tmp)
-  
-  out
-  
+  # return outputs
+  list(
+    dat = dat,
+    bugsdata = bugsdata,
+    inits = inits,
+    params = params,
+    covar_std = covar_std,
+    filename = filename,
+    file_tmp = file_tmp
+  )
+
 }   
 
 # extract model summary stats
@@ -632,11 +632,6 @@ plot_trend <- function(mod_sum, bugsdata, sp_names, spp, resp, system = NULL) {
   
   trends.r <- mod_sum$trends[grep(paste0("\\[", sysnum, ","), rownames(mod_sum$trends)), ]
 
-  # if (spp == "goldenperch")
-  #   trends.r <- trends.r[-nrow(trends.r), ]
-  # if (spp == "silverperch")
-  #   trends.r <- trends.r[-c(1:3, nrow(trends.r)), ]
-  
   trend_upper95 <- trends.r$pc97.5
   trend_lower95 <- trends.r$pc2.5
   trend_upper50 <- trends.r$pc75
@@ -681,7 +676,7 @@ plot_covars <- function(mod_sum, bugsdata, resp, cov_names = NULL, covar_std) {
   
   oldmfrow <- par()$mfrow
   round_val <- list(c(-2, rep(-3, 4)),
-                    2, 2, 2)
+                    2, 2, 2, 2, 2, 2)
   par(mfrow = c(1, 2))
   for (i in seq_len(bugsdata$Q)) {
     x_set <- bugsdata$Xplot[2:nrow(bugsdata$Xplot), i]
@@ -719,14 +714,14 @@ plot_covars_single <- function(mod_sum, bugsdata, resp, cov_names = NULL, covar_
   
   oldmfrow <- par()$mfrow
   round_val <- list(c(-2, rep(-3, 4)),
-                    2, 2, 2)
+                    2, 2, 2, 2, 2, 2)
   i <- subset
   x_set <- bugsdata$Xplot[2:nrow(bugsdata$Xplot), i]
   x_adj <- covar_std$mean[i] + (x_set * covar_std$x[i])
   plot(cov_mean[, i] ~ x_set,
        type = "l", bty = "l", las = 1,
        xaxt = "n",
-       xlab = cov_names[i], ylab = paste0("Effect on ", ifelse(resp == "weight", "biomass", "abundance")),
+       xlab = "", ylab = "",
        ylim = range(c(0, cov_mean[, i], cov_lower[, i], cov_upper[, i])))
   axis(1, at = seq(min(x_set), max(x_set), length = 5),
        labels = round(seq(min(x_adj), max(x_adj), length = 5), round_val[[i]]))
@@ -736,6 +731,55 @@ plot_covars_single <- function(mod_sum, bugsdata, resp, cov_names = NULL, covar_
           col = ggplot2::alpha("gray50", 0.5))
   lines(cov_mean[, i] ~ bugsdata$Xplot[2:nrow(bugsdata$Xplot), i])
   lines(range(bugsdata$Xplot[2:nrow(bugsdata$Xplot), i]), c(1, 1), lty = 2)
+  
+  
+  mtext(cov_names[i], side = 1, line = 2.1, adj = 0.5, cex = 0.7)
+  
+  if (k == 1 | k == 5) {
+    mtext(paste0("Effect on ", ifelse(resp == "weight_g", "biomass", "abundance")),
+        side = 2, line = 2.6, adj = 0.5, cex = 0.7)
+  }
+
+}
+
+plot_fitted2 <- function(mod_sum, bugsdata, sp_names, spp, resp, system = 1, ylab = NULL) {
+  
+  sysnum <- system
+  fitted.r <- mod_sum$fitted[grep(paste0("\\[", sysnum, ","), rownames(mod_sum$fitted)), ]
+  
+  sysname <- mod$mod_sum$sysnames[sysnum]
+  subset <- mod_sum$dat$system == sysname
+  if (sysname == "All systems")
+    subset <- seq_len(nrow(mod_sum$dat))
+  
+  xvals <- fitted.r$yr
+  upper95 <- fitted.r$pc97.5
+  lower95 <- fitted.r$pc2.5
+  upper50 <- fitted.r$pc75
+  lower50 <- fitted.r$pc25
+  plot(mod_sum$dat$yadj[subset] ~ mod_sum$dat$year[subset],
+       ylim = range(c(mod_sum$dat$yadj, upper95, lower95, upper50, lower50)),
+       type = "n",
+       log = "y",
+       las = 1, bty = "l",
+       xlab = "", ylab = "")
+  polygon(c(xvals, rev(xvals)),
+          c(upper95, rev(lower95)),
+          col = ggplot2::alpha("grey75", 0.5),
+          border = NA)
+  polygon(c(xvals, rev(xvals)),
+          c(upper50, rev(lower50)),
+          col = ggplot2::alpha("grey50", 0.5),
+          border = NA)
+  lines(fitted.r$pc50 ~ xvals, lwd = 2,
+        col = ggplot2::alpha("grey30", 0.5))
+  points(mod_sum$dat$yadj[subset] ~ mod_sum$dat$year[subset],
+         pch = 16,
+         col = ggplot2::alpha("grey30", 0.5))
+  mtext("Year", side = 1, adj = 0.5, line = 2.5)
+  if (is.null(ylab))
+    ylab <- paste0(ifelse(resp == "abundance", "Abundance ", "Biomass "), ' CPUE')
+  mtext(ylab, side = 2, adj = 0.5, line = 4)
   
 }
 
