@@ -1,5 +1,4 @@
 
-.gitignore
 code/00-prepare-data-object.R
 data/compiled-survey-data.rds
 data/species-by-year.csv
